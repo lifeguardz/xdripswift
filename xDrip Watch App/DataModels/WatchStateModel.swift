@@ -144,6 +144,7 @@ final class WatchStateModel: NSObject, ObservableObject {
     @Published private(set) var directSensorName: String?
     @Published private(set) var latestDirectReadingTimeStamp: Date?
     @Published private(set) var directSensorStartDate: Date?
+    @Published private(set) var directSensorPairingRequired = false
 
     private var directSensorCancellables = Set<AnyCancellable>()
 
@@ -193,6 +194,11 @@ final class WatchStateModel: NSObject, ObservableObject {
         directSensorManager.$directSensorStartDate
             .receive(on: DispatchQueue.main)
             .sink { [weak self] startDate in self?.directSensorStartDate = startDate }
+            .store(in: &directSensorCancellables)
+
+        directSensorManager.$pairingRequired
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] required in self?.directSensorPairingRequired = required }
             .store(in: &directSensorCancellables)
 
         // resume a persisted direct connection before the iPhone answers the first status request

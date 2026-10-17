@@ -168,6 +168,13 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
     /// authentication, but is retained here so configuration boundaries can enforce that rule.
     private var pairingCode: String?
 
+    /// Device-level state: the sensor currently requires a Bluetooth bond before it will work with
+    /// encrypted-requiring characteristics, and no working bond exists yet. Unlike authentication,
+    /// this is NOT reset by per-connection cleanup: the bond belongs to the physical sensor and
+    /// this device, and survives wake cycles, disconnections, and app relaunches. Only usable
+    /// encrypted access can prove that the requirement is gone.
+    private var pairingRequired = false
+
     /// Owns the complete primary-only authentication state machine. The transport callbacks below
     /// are the only route by which it can touch Core Bluetooth or grant primary readiness.
     private let authSession: DexcomG7AuthSession
@@ -401,6 +408,35 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         super.prepareForRelease()
     }
 
+    // MARK: - Bluetooth bond state
+
+    /// Core Bluetooth reports this error text when an encrypted-requiring characteristic is accessed
+    /// without an existing Bluetooth bond. Matching the localized description is the established
+    /// pattern in this class (see the coexistence branch); the string is stable across iOS and
+    /// watchOS releases.
+    private func encryptionInsufficient(error: Error) -> Bool {
+        error.localizedDescription.contains(find: "Encryption is insufficient")
+    }
+
+    /// Applies a changed Bluetooth-pairing requirement. Reports to the delegate on transitions only,
+    /// on the main thread, because a direct-connection UI (Watch) may need to instruct the user.
+    private func reportBluetoothPairingState(_ required: Bool) {
+        assertOnCentral()
+        guard pairingRequired != required else { return }
+
+        pairingRequired = required
+        if required {
+            trace("G7 sensor requires a Bluetooth pairing request. Core Bluetooth cannot show the system pairing dialog while the app is not active", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
+        } else {
+            trace("G7 encrypted Bluetooth link is usable. Pairing requirement cleared", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.cGMG7TransmitterDelegate?.received(pairingRequired: required, cGMG7Transmitter: self)
+        }
+    }
+
     /// Discover new coexistence sensors through the Dexcom app's connection. Known sensors use
     /// the saved-peripheral path in either mode; connecting does not claim authentication ownership.
     override func connect() {
@@ -448,6 +484,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         // of connection-scoped state before the new mode is allowed to discover characteristics.
         self.useOtherApp = useOtherApp
         primaryAuthenticationBlocked = false
+        pairingRequired = false
         authSession.resetForConnection()
         primaryAuthenticated = false
         primaryGlucoseRequestSent = false
@@ -485,6 +522,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         // discovery so no packet from the old exchange can be reused.
         self.pairingCode = validCode
         primaryAuthenticationBlocked = false
+        pairingRequired = false
         authSession.updatePairingCode(validCode)
         primaryAuthenticated = false
         primaryGlucoseRequestSent = false
@@ -509,6 +547,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         // both authentication and all commands whose acknowledgement belongs to the old channel.
         self.bluetoothSlot = bluetoothSlot
         primaryAuthenticationBlocked = false
+        pairingRequired = false
         authSession.updateBluetoothSlot(bluetoothSlot)
         primaryAuthenticated = false
         primaryGlucoseRequestSent = false
@@ -712,6 +751,13 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
     override func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         if let error {
             trace("G7 value update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
+
+            // Some sensor firmware simply drops the connection instead of answering an
+            // encrypted-requiring characteristic over a plaintext link. Any encrypted read
+            // rejection is therefore valid pairing evidence as well.
+            if !useOtherApp, encryptionInsufficient(error: error) {
+                reportBluetoothPairingState(true)
+            }
             return
         }
         guard let value = characteristic.value,
@@ -741,11 +787,19 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         super.peripheral(peripheral, didUpdateNotificationStateFor: characteristic, error: error)
 
         if let error {
-            if useOtherApp, error.localizedDescription.contains(find: "Encryption is insufficient") {
-                // Coexistence never authenticates or takes ownership. The Dexcom app must complete
-                // authentication. The normal sensor disconnect then ends this passive attempt and
-                // the standard Bluetooth lifecycle reconnects on a later wake.
-                trace("G7 coexistence is waiting for the Dexcom app to authenticate", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
+            if encryptionInsufficient(error: error) {
+                if useOtherApp {
+                    // Coexistence never authenticates or takes ownership. The Dexcom app must complete
+                    // authentication. The normal sensor disconnect then ends this passive attempt and
+                    // the standard Bluetooth lifecycle reconnects on a later wake.
+                    trace("G7 coexistence is waiting for the Dexcom app to authenticate", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
+                } else {
+                    trace("G7 notification update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
+                    // Primary mode owns the encrypted link. A rejected notification subscription on
+                    // Write_Control or Auth characteristics without a bond means the sensor now needs
+                    // the user to confirm the system pairing request.
+                    reportBluetoothPairingState(true)
+                }
             } else {
                 trace("G7 notification update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
             }
@@ -762,70 +816,91 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
                 // Notification readiness is the last transport prerequisite for control commands.
                 // Coexistence may submit a queued calibration after observing Dexcom authentication.
                 // Primary first asks for the current reading after completing its own authentication.
-                if useOtherApp { sendCalibrationOrBoundsIfReady() }
-                else { sendPrimaryGlucoseRequestIfReady() }
+                if useOtherApp { sendCalibrationOrBoundsIfReady() } else {
+                    // A successful encrypted-requiring subscription proves the bond works.
+                    reportBluetoothPairingState(false)
+                    sendPrimaryGlucoseRequestIfReady()
+                }
             }
-        case .backfill, .communication, nil: break
+        case .backfill:
+            // The Backfill characteristic also requires the encrypted link in primary mode.
+            if characteristic.isNotifying, !useOtherApp {
+                reportBluetoothPairingState(false)
+            }
+        case .communication, nil: break
         }
     }
 
     override func peripheral(_ peripheral: CBPeripheral, didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
         super.peripheral(peripheral, didWriteValueFor: characteristic, error: error)
 
-        guard error != nil,
-              CharacteristicUUID(rawValue: characteristic.uuid.uuidString) == .writeControl else { return }
+        if let error {
+            // Primary mode owns the encrypted link. A write rejected because the Bluetooth bond is
+            // missing is pairing evidence for every characteristic of this service, including the
+            // pre-authentication control writes, in case sensor firmware restricts those too.
+            if !useOtherApp, encryptionInsufficient(error: error) {
+                reportBluetoothPairingState(true)
+            }
 
-        if calibrationWriteInFlight {
-            // CoreBluetooth rejected the local write before the transmitter could answer. Keep the
-            // Core Data calibration unsent and retry it from a clean connection cycle.
-            calibrationWriteInFlight = false
-            setCalibrationStatus(.queued)
-            trace(
-                "G7 calibration write failed mode=%{public}@ channel=%{public}@ id=%{public}@. Queued for retry",
-                log: log,
-                category: ConstantsLog.categoryCGMG7,
-                type: .error,
-                useOtherApp ? "coexistence" : "primary",
-                TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name,
-                calibrationToSendToTransmitter?.id ?? "none"
-            )
-            disconnect()
-        } else if calibrationBoundsRequestSent {
-            calibrationBoundsRequestSent = false
-            trace(
-                "G7 calibration bounds write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
-                log: log,
-                category: ConstantsLog.categoryCGMG7,
-                type: .error,
-                useOtherApp ? "coexistence" : "primary",
-                TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
-            )
-            disconnect()
-        } else if fullVersionRequestSent {
-            // A transport failure does not make the version available. Keep the connection guard
-            // set so this short wake cannot retry or fall through to a different diagnostic. The
-            // normal disconnect boundary clears it for the next authenticated sensor wake.
-            trace(
-                "G7 full version write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
-                log: log,
-                category: ConstantsLog.categoryCGMG7,
-                type: .error,
-                useOtherApp ? "coexistence" : "primary",
-                TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
-            )
-            sendCalibrationOrBoundsIfReady()
-        } else if batteryStatusRequestSent {
-            // Do not advance the persisted read date until a complete response is decoded. This
-            // keeps a failed request due without creating a rapid retry loop in the current wake.
-            trace(
-                "G7 battery status write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
-                log: log,
-                category: ConstantsLog.categoryCGMG7,
-                type: .error,
-                useOtherApp ? "coexistence" : "primary",
-                TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
-            )
-            sendCalibrationOrBoundsIfReady()
+            guard CharacteristicUUID(rawValue: characteristic.uuid.uuidString) == .writeControl else { return }
+
+            if calibrationWriteInFlight {
+                // CoreBluetooth rejected the local write before the transmitter could answer. Keep the
+                // Core Data calibration unsent and retry it from a clean connection cycle.
+                calibrationWriteInFlight = false
+                setCalibrationStatus(.queued)
+                trace(
+                    "G7 calibration write failed mode=%{public}@ channel=%{public}@ id=%{public}@. Queued for retry",
+                    log: log,
+                    category: ConstantsLog.categoryCGMG7,
+                    type: .error,
+                    useOtherApp ? "coexistence" : "primary",
+                    TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name,
+                    calibrationToSendToTransmitter?.id ?? "none"
+                )
+                disconnect()
+            } else if calibrationBoundsRequestSent {
+                calibrationBoundsRequestSent = false
+                trace(
+                    "G7 calibration bounds write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
+                    log: log,
+                    category: ConstantsLog.categoryCGMG7,
+                    type: .error,
+                    useOtherApp ? "coexistence" : "primary",
+                    TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
+                )
+                disconnect()
+            } else if fullVersionRequestSent {
+                // A transport failure does not make the version available. Keep the connection guard
+                // set so this short wake cannot retry or fall through to a different diagnostic. The
+                // normal disconnect boundary clears it for the next authenticated sensor wake.
+                trace(
+                    "G7 full version write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
+                    log: log,
+                    category: ConstantsLog.categoryCGMG7,
+                    type: .error,
+                    useOtherApp ? "coexistence" : "primary",
+                    TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
+                )
+                sendCalibrationOrBoundsIfReady()
+            } else if batteryStatusRequestSent {
+                // Do not advance the persisted read date until a complete response is decoded. This
+                // keeps a failed request due without creating a rapid retry loop in the current wake.
+                trace(
+                    "G7 battery status write failed mode=%{public}@ channel=%{public}@. Retrying next connection",
+                    log: log,
+                    category: ConstantsLog.categoryCGMG7,
+                    type: .error,
+                    useOtherApp ? "coexistence" : "primary",
+                    TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name
+                )
+                sendCalibrationOrBoundsIfReady()
+            }
+        } else if CharacteristicUUID(rawValue: characteristic.uuid.uuidString) == .writeControl, !useOtherApp {
+            // A successful Write_Control write proves that the encrypted link is usable. The
+            // authentication-control writes stay out of this: they are pre-bond plaintext packets
+            // and prove nothing about the bond.
+            reportBluetoothPairingState(false)
         }
     }
 

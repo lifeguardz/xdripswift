@@ -74,6 +74,10 @@ class Texts_WatchApp {
         return NSLocalizedString("directConnectionLastReading", tableName: filename, bundle: Bundle.main, value: "Last direct reading", comment: "watch app - label for the time of the last directly collected reading")
     }()
 
+    static let directConnectionPairingNeeded: String = {
+        return NSLocalizedString("directConnectionPairingNeeded", tableName: filename, bundle: Bundle.main, value: "Bluetooth pairing needed: keep this app open and confirm the pairing request within the next few minutes.", comment: "watch app - shown while the sensor requires the user to confirm the system Bluetooth pairing request")
+    }()
+
     // MARK: - Watch local glucose alerts for directly collected readings
 
     static let alertUrgentLowTitle: String = {

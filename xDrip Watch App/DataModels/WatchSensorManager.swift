@@ -120,6 +120,11 @@ final class WatchSensorManager: NSObject, ObservableObject {
     /// Human-readable sensor status reported with the current glucose response, when available.
     @Published private(set) var sensorStatusText: String?
 
+    /// The sensor demands a Bluetooth pairing request that it cannot complete right now: the bond
+    /// does not exist yet and the system pairing dialog can only appear while the Watch app is
+    /// active in the foreground (Direct-to-Watch pairing, see docs/watch-direct-to-sensor.md).
+    @Published private(set) var pairingRequired = false
+
     /// Readings collected from the sensor. Delivered on an arbitrary queue: implementors must hop
     /// to the main queue themselves. Newest reading first (the CGM delegate contract).
     var onReadings: ((_ readings: [(valueMgDl: Double, timeStamp: Date, slopeOrdinal: Int?)], _ sensorAge: TimeInterval?) -> Void)?
@@ -181,8 +186,18 @@ final class WatchSensorManager: NSObject, ObservableObject {
 
         stopTransmitter()
 
+        // Reuse the Core Bluetooth identifier of a previous successful connection to the SAME
+        // sensor: the transmitter restores the peripheral directly, so the sensor's short
+        // five-minute wake windows are caught without a scan. The BluetoothTransmitter base class
+        // persists the identifier/name pair after every successful connection; the name comparison
+        // is the ownership guard so a newly configured sensor always starts with a clean scan.
+        let storedAddress = Self.persistedPeripheralAddress(for: configuration.transmitterId)
+        if storedAddress == nil {
+            log.info("no persisted peripheral identifier for \(configuration.transmitterId, privacy: .public), starting with scan discovery")
+        }
+
         let newTransmitter = CGMG7Transmitter(
-            address: nil,
+            address: storedAddress,
             name: configuration.transmitterId,
             transmitterID: configuration.transmitterId,
             useOtherApp: configuration.useOtherApp,
@@ -216,6 +231,20 @@ final class WatchSensorManager: NSObject, ObservableObject {
         latestReadingTimeStamp = nil
         directSensorStartDate = nil
         sensorStatusText = nil
+        pairingRequired = false
+    }
+
+    /// Returns the CoreBluetooth identifier the BluetoothTransmitter base class persisted after a
+    /// previous successful connection to the same sensor, or nil. The stored name doubles as the
+    /// ownership guard: it is the sensor's advertised `DX...` name and must be identical to the
+    /// configured transmitter ID, so a replacement sensor never reuses the old identifier.
+    private static func persistedPeripheralAddress(for transmitterId: String) -> String? {
+        let defaults = UserDefaults.standard
+        guard defaults.string(forKey: BluetoothTransmitter.DefaultsKey.lastKnownDeviceName) == transmitterId,
+              let address = defaults.string(forKey: BluetoothTransmitter.DefaultsKey.lastKnownDeviceAddress),
+              !address.isEmpty,
+              UUID(uuidString: address) != nil else { return nil }
+        return address
     }
 
     // MARK: - private helpers
@@ -307,6 +336,8 @@ extension WatchSensorManager: CGMTransmitterDelegate {
         publishOnMain {
             self.connectionPhase = .connected
             self.latestReadingTimeStamp = readings[0].timeStamp
+            // glucose arrives through the encrypted link: any earlier pairing requirement is over
+            self.pairingRequired = false
         }
 
         log.info("received \(readingCount) reading(s), newest at \(newestReadingTimeStamp, privacy: .public)")
@@ -322,6 +353,15 @@ extension WatchSensorManager: CGMTransmitterDelegate {
 // MARK: - CGMG7TransmitterDelegate
 
 extension WatchSensorManager: CGMG7TransmitterDelegate {
+    /// The sensor rejected encrypted access because no Bluetooth bond exists yet. The system
+    /// pairing request can only appear while this app is active in the foreground, so the UI shows
+    /// a keep-open instruction while the connection keeps retrying at every sensor wake.
+    func received(pairingRequired: Bool, cGMG7Transmitter _: CGMG7Transmitter) {
+        publishOnMain {
+            self.pairingRequired = pairingRequired
+        }
+    }
+
     func received(sensorStartDate: Date?, cGMG7Transmitter: CGMG7Transmitter) {
         publishOnMain {
             self.directSensorStartDate = sensorStartDate

@@ -9,7 +9,9 @@ class BluetoothTransmitter: NSObject, CBCentralManagerDelegate, CBPeripheralDele
     
     // MARK: - persistence (UserDefaults keys)
     /// we use this to store the required info needed to restore a random ID if it was created that way during the init
-    private enum DefaultsKey {
+    /// internal to allow reusing the persisted identifier/name pair from other targets that share
+    /// this file (e.g. the Watch app's direct sensor connection)
+    enum DefaultsKey {
         static let lastKnownDeviceAddress = "bt.lastKnownDeviceAddress"
         static let lastKnownDeviceName    = "bt.lastKnownDeviceName"
     }

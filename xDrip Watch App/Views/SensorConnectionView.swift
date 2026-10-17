@@ -43,6 +43,14 @@ struct SensorConnectionView: View {
                 Spacer()
             }
             .padding(.vertical, 2)
+
+            if watchState.directConnectionPhase == .connecting && watchState.directSensorPairingRequired {
+                Text(Texts_WatchApp.directConnectionPairingNeeded)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+                    .minimumScaleFactor(0.8)
+            }
         } header: {
             Text(Texts_WatchApp.directConnectionStatus)
         }

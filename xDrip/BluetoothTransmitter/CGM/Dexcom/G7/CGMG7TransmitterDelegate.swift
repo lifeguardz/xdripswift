@@ -27,4 +27,21 @@ protocol CGMG7TransmitterDelegate: AnyObject {
         isFirstReading: Bool,
         cGMG7Transmitter: CGMG7Transmitter
     )
+
+    /// Reports the sensor's Bluetooth-pairing requirement.
+    ///
+    /// A G7-family sensor allows the authentication characteristics over a plaintext link, but it
+    /// requires an encrypted link - a Bluetooth bond - before it accepts anything through
+    /// `Write_Control` or `Backfill`. Core Bluetooth cannot create a bond on request; the system
+    /// pairing request appears when the app performs encrypted-requiring access while it is active
+    /// in the foreground. `true` therefore means the connection needs the user to keep the app
+    /// open and confirm an upcoming system pairing request. `false` confirms that an encrypted
+    /// characteristic is usable again (the bond was established, or already existed).
+    ///
+    /// The default is a no-op because only the Watch app's direct-connection UI tracks this state.
+    func received(pairingRequired: Bool, cGMG7Transmitter: CGMG7Transmitter)
+}
+
+extension CGMG7TransmitterDelegate {
+    func received(pairingRequired: Bool, cGMG7Transmitter _: CGMG7Transmitter) {}
 }
