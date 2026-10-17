@@ -21,6 +21,7 @@ struct SensorConnectionView: View {
             statusSection
             toggleSection
             sensorSection
+            connectionLogSection
         }
         .listStyle(.carousel)
         .navigationTitle(Texts_WatchApp.directConnection)
@@ -103,6 +104,35 @@ struct SensorConnectionView: View {
     }
 
     // MARK: - private helpers
+
+    /// Rolling connection diagnostics. Newest entry first, English-only text so a screenshot can
+    /// be reported verbatim. Kept deliberately compact: the watch list must not become a wall.
+    private var connectionLogSection: some View {
+        Section {
+            if watchState.directSensorConnectionLog.isEmpty {
+                Text(Texts_WatchApp.directConnectionLogEmpty)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            } else {
+                ForEach(watchState.directSensorConnectionLog) { entry in
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(entry.timeStamp.formatted(date: .omitted, time: .standard))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+
+                        Text(entry.text)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                    }
+                }
+            }
+        } header: {
+            Text(Texts_WatchApp.directConnectionLog)
+        }
+    }
 
     /// The toggle reflects the configuration the iPhone last confirmed, never a local-only value:
     /// a change is sent to the iPhone and the toggle snaps back until the fresh status arrives.

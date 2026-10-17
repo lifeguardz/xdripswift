@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** code complete for Phases 0–5 (Direct connection, data flow, settings UI, background execution, watch-local alerts, safety + conflict documentation). **Pending: real-sensor hardware validation** — follow the checklist in Phase 5.
+- **Status:** in progress — Phases 0–5 implemented; Phase B (pairing) and Phase C (evidence-based channel + handover + watch connection log) added after the first TestFlight round. Pending: real-sensor validation of the Phase C build. See the Phase C section for the research-driven architecture change.
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -322,6 +322,54 @@ pure and centralised in `WatchStateModel` so the extraction stays small when it 
 | Official Dexcom watch app already installed | Both compete for the smartwatch channel | Document; detect and surface "smartwatch channel busy" state |
 | Upstream drift makes the fork hard to rebase | Accepted (personal fork first) | Keep changes additive and phase-isolated to ease future upstream PRs |
 | Swimming/submersion drops readings | Hardware reality, identical to official app | Document it |
+
+### Phase C — research-driven rework: channel choice, sensor handover, connection log (added after the first TestFlight round)
+
+Evidence from two research passes (Juggluco source + community reverse-engineering):
+
+- **The Watch must NOT claim the smart-watch slot as the default.** The Wear OS reference
+  implementation (Juggluco) authenticates its watch exactly like a phone: slot byte 0x02, identical
+  code path, no watch-specific branch. xDrip+ uses 0x02 with 0x01 as an alternate. **No public
+  implementation anywhere uses slot 0x03**, and the sensor silently ignored our slot-0x03 auth
+  requests (no J-PAKE start, no `0x0619`, no pairing prompt — the exact observed failure).
+- **The official Direct-to-Watch model is phone-onboarded** (FDA 510(k) K234133: "All onboarding,
+  details, and settings of the G7 Watch App are only viewable or configurable on the G7 Mobile App").
+  The byte-level enrollment protocol is not publicly documented, and simultaneous phone+watch has
+  never been reproduced by a third-party project on any platform.
+- **The proven third-party model is one owner at a time (handover).** Juggluco hands the sensor from
+  phone to watch (the phone switches its sensor Bluetooth off); our upstream's Libre-2-on-Apple-Watch
+  PoC (PR #750) uses the same architecture. Handover works because readings still reach the phone
+  through the existing watch→phone relay.
+
+What was implemented in Phase C:
+
+- **Watch Connection Channel setting** (G7 sensor settings, Direct-to-Watch section): Mobile App
+  (recommended) vs Smart Watch (experimental). The selected slot is sent in the watch payload;
+  changing it restarts the Watch transmitter (the slot is now part of the lifecycle signature).
+  Default: slot 0x02.
+- **Sensor handover semantics** (RootApplicationCoordinator): when Direct-to-Watch is enabled AND the
+  Watch channel equals this sensor's own channel, this app pauses its own sensor connection
+  (`shouldconnect` false, transmitter released) and lives off the readings the Watch relays; the
+  handover survives app restarts (the handed-over sensor identity is recorded). Disabling — or
+  switching the Watch channel — takes the sensor back: the app's stored ownership keys are cleared
+  (the Watch replaced the slot key while it owned the sensor) and the next connection performs a
+  fresh full ownership with the pairing code. When the Watch uses a different slot, the original
+  coexistence design applies and this app keeps its own connection.
+- **Real sensor name** in the watch payload: automatic-discovery stores the `DX0000` placeholder in
+  transmitterId; the payload now prefers the real advertised name from Core Data (`BLEPeripheral.name`)
+  so the Watch scans for an exact name (never a neighbour's sensor), the connection log displays the
+  real sensor, and the persisted-identifier reuse is effective. With no precise name known yet, the
+  Watch configuration stays inert until the iPhone has connected once.
+- **Watch connection log** (bottom of the Direct Connection page): a rolling diagnostic buffer of
+  connection milestones (advertisement seen → connected → characteristics → auth started → auth
+  status → ownership → readings, plus every notification/write failure with its error text), fed by
+  a new optional `CGMG7TransmitterDelegate` callback (default no-op — the iOS side is unchanged).
+  This replaces blind debugging: a screenshot shows exactly how far the funnel progressed.
+- **Watch re-ownership on re-enable**: each enable cycle clears the Watch's stored ownership key so
+  the Watch re-owns the channel with a fresh J-PAKE after the phone has taken it back.
+- **Known limitation while handed over**: calibrations entered on the iPhone cannot reach the sensor
+  (the G7-family sensors are factory-calibrated; the calibration path works normally when the feature
+  is disabled).
 
 ---
 

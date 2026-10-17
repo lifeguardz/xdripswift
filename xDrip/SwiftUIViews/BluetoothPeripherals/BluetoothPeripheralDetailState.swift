@@ -1215,6 +1215,16 @@ private extension DexcomG7BluetoothSlot {
         case .smartWatch: return Texts_BluetoothPeripheralView.dexcomG7SmartWatchSlotFooter
         }
     }
+
+    /// Title used by the Direct-to-Watch channel picker, which offers only the two slots a Watch
+    /// can meaningfully use and describes the evidence behind them.
+    var watchDirectOptionTitle: String {
+        switch self {
+        case .mobileApp: return Texts_BluetoothPeripheralView.dexcomG7WatchDirectMobileAppSlotOption
+        case .medicalDevice: return shortTitle
+        case .smartWatch: return Texts_BluetoothPeripheralView.dexcomG7WatchDirectSmartWatchSlotOption
+        }
+    }
 }
 
 // MARK: - Scanning and NFC
@@ -2460,6 +2470,35 @@ private extension BluetoothPeripheralDetailState {
 
         refresh()
     }
+
+    /// Selection list for the authentication slot the Watch app uses. Only the mobile-app and the
+    /// smart-watch slot are offered: the receiver slot cannot authenticate a Watch.
+    func requestDexcomG7WatchDirectBluetoothChannel() {
+        let options: [DexcomG7BluetoothSlot] = [.mobileApp, .smartWatch]
+
+        presentSelectionListView(BluetoothPeripheralSelectionList(
+            title: Texts_BluetoothPeripheralView.dexcomG7WatchDirectBluetoothChannel,
+            explanation: Texts_BluetoothPeripheralView.dexcomG7WatchDirectBluetoothChannelExplanation,
+            data: options.map(\.watchDirectOptionTitle),
+            selectedRow: options.firstIndex(of: UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot),
+            emphasizesParenthesizedSuffix: true,
+            actionHandler: { [weak self] index in
+                guard options.indices.contains(index) else { return }
+                self?.selectDexcomG7WatchDirectBluetoothChannel(options[index])
+            }
+        ))
+    }
+
+    /// Persists the Watch channel. Live components pick it up through their own observers: the
+    /// Watch receives the new slot with the next pushed status, and the application coordinator
+    /// re-evaluates whether the sensor must be handed over.
+    func selectDexcomG7WatchDirectBluetoothChannel(_ slot: DexcomG7BluetoothSlot) {
+        guard slot != UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot else { return }
+
+        UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot = slot
+
+        refresh()
+    }
 }
 
 // MARK: - Dexcom G7/ONE+/Stelo
@@ -2521,6 +2560,19 @@ private extension BluetoothPeripheralDetailState {
                 isOn: UserDefaults.standard.watchDirectToSensorEnabled,
                 setValue: { isEnabled in
                     UserDefaults.standard.watchDirectToSensorEnabled = isEnabled
+                }
+            ))
+
+            // The Watch channel decides which authentication slot the Watch claims and, when it is
+            // this sensor's own slot, whether this app hands the sensor over while Direct to Watch
+            // is enabled. Selection list mirrors the sensor's own Bluetooth channel row.
+            rows.append(row(
+                id: "dexcom-g7-watch-direct-channel",
+                title: Texts_BluetoothPeripheralView.dexcomG7WatchDirectBluetoothChannel,
+                detail: UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot.shortTitle,
+                showsDisclosure: true,
+                action: { [weak self] in
+                    self?.requestDexcomG7WatchDirectBluetoothChannel()
                 }
             ))
         }

@@ -36,8 +36,9 @@ struct WatchDirectSensorConfiguration: Codable, Equatable {
     /// Watch v1 always authenticates as primary client; coexistence is a phone-only concept.
     var useOtherApp: Bool = false
 
-    /// `DexcomG7BluetoothSlot` raw value, always the smartwatch slot for this app.
-    var bluetoothSlotRawValue: Int = Int(DexcomG7BluetoothSlot.smartWatch.rawValue)
+    /// `DexcomG7BluetoothSlot` raw value for the Watch's own connection. Default is the mobile-app
+    /// slot (the evidence-based proven configuration); the iPhone sends the user's selection.
+    var bluetoothSlotRawValue: Int = Int(DexcomG7BluetoothSlot.mobileApp.rawValue)
 
     /// Supported total session length in seconds (10.5 or 15.5 days), when the iPhone knows it.
     var sensorSessionLengthAsDouble: Double?
@@ -64,9 +65,11 @@ struct WatchDirectSensorConfiguration: Codable, Equatable {
     private static let defaultsKey = "watchDirectSensorConfiguration"
 
     /// The configuration that changes the transmitter lifecycle. Everything else (session length,
-    /// slot) is passed to the transmitter on start but must not restart a running connection.
+    /// slot) is passed to the transmitter on start but must not restart a running connection - with
+    /// one deliberate exception: the slot IS part of the signature because it can be changed by the
+    /// user (Watch Connection Channel) and a changed slot requires a restarted transmitter.
     private var lifecycleSignature: String {
-        "\(enabled)-\(transmitterId)-\(pairingCode)-\(useOtherApp)"
+        "\(enabled)-\(transmitterId)-\(pairingCode)-\(useOtherApp)-\(bluetoothSlotRawValue)"
     }
 
     static func loadPersisted() -> WatchDirectSensorConfiguration? {
@@ -97,6 +100,14 @@ enum WatchSensorConnectionPhase: Equatable {
     case connected
 }
 
+/// One line of the on-watch connection log: a timestamp plus an already-formatted diagnostic
+/// text (English only, so it stays identical across devices and easy to report).
+struct WatchDirectConnectionLogEntry: Identifiable {
+    let id = UUID()
+    let timeStamp: Date
+    let text: String
+}
+
 /// Manages the Watch app's own CGMG7Transmitter instance.
 ///
 /// This is deliberately a slim manager: the heavy lifting (scan, J-PAKE authentication, backfill,
@@ -125,6 +136,13 @@ final class WatchSensorManager: NSObject, ObservableObject {
     /// active in the foreground (Direct-to-Watch pairing, see docs/watch-direct-to-sensor.md).
     @Published private(set) var pairingRequired = false
 
+    /// Rolling connection diagnostics (newest first) shown on the Direct Connection page. The
+    /// entries answer "how far did the connection get" without console access. Capped so the
+    /// buffer cannot grow while a sensor is unreachable for hours.
+    @Published private(set) var connectionLogEntries: [WatchDirectConnectionLogEntry] = []
+
+    private static let maximumConnectionLogEntries = 24
+
     /// Readings collected from the sensor. Delivered on an arbitrary queue: implementors must hop
     /// to the main queue themselves. Newest reading first (the CGM delegate contract).
     var onReadings: ((_ readings: [(valueMgDl: Double, timeStamp: Date, slopeOrdinal: Int?)], _ sensorAge: TimeInterval?) -> Void)?
@@ -139,6 +157,9 @@ final class WatchSensorManager: NSObject, ObservableObject {
 
     /// Applies a configuration received from the iPhone. Restarts the transmitter only when the
     /// lifecycle-relevant fields changed, so routine status pushes never interrupt a connection.
+    /// A (re)enable after the feature was off clears the Watch's stored ownership key first: in
+    /// the handover model the iPhone re-owned the channel while the Watch was disabled, so the
+    /// next connection must perform a fresh full ownership with the pairing code.
     func applyConfiguration(_ newConfiguration: WatchDirectSensorConfiguration) {
         let oldConfiguration = configuration
 
@@ -150,20 +171,25 @@ final class WatchSensorManager: NSObject, ObservableObject {
         guard !WatchDirectSensorConfiguration.hasSameLifecycle(oldConfiguration, newConfiguration) else { return }
 
         if newConfiguration.isStartable {
-            startTransmitter()
+            let previouslyDisabledOrAbsent = oldConfiguration?.isStartable != true
+            startTransmitter(clearPersistedAuthentication: previouslyDisabledOrAbsent)
+            appendConnectionLogEntry(
+                "Configuration applied: \(newConfiguration.transmitterId), channel \(String(format: "%02X", newConfiguration.bluetoothSlotRawValue))"
+            )
         } else {
             stopTransmitter()
         }
     }
 
     /// Resumes a previously persisted configuration at app launch, before the iPhone has answered.
+    /// The Watch keeps ownership across suspensions, so its stored key is not cleared here.
     func restorePersistedConfiguration() {
         guard configuration == nil, let persisted = WatchDirectSensorConfiguration.loadPersisted() else { return }
 
         configuration = persisted
 
         if persisted.isStartable {
-            startTransmitter()
+            startTransmitter(clearPersistedAuthentication: false)
         }
     }
 
@@ -181,7 +207,7 @@ final class WatchSensorManager: NSObject, ObservableObject {
         stopTransmitter()
     }
 
-    private func startTransmitter() {
+    private func startTransmitter(clearPersistedAuthentication: Bool) {
         guard let configuration else { return }
 
         stopTransmitter()
@@ -215,6 +241,12 @@ final class WatchSensorManager: NSObject, ObservableObject {
         )
 
         transmitter = newTransmitter
+
+        // see applyConfiguration: a (re)enabled Watch clears its own stored ownership key before
+        // the first connection so the channel can be re-owned with a fresh J-PAKE exchange
+        if clearPersistedAuthentication {
+            newTransmitter.requestClearPersistedAuthentication()
+        }
 
         connectionPhase = .connecting
         log.info("direct sensor connection starting for \(configuration.transmitterId, privacy: .public)")
@@ -259,6 +291,25 @@ final class WatchSensorManager: NSObject, ObservableObject {
             }
         }
     }
+
+    /// Records one diagnostic line in the connection log (newest first). Called from any queue:
+    /// the buffer update is funneled through `publishOnMain`. Consecutive identical texts are
+    /// collapsed so repeated sensor wake cycles do not bury the interesting changes.
+    private func appendConnectionLogEntry(_ text: String) {
+        publishOnMain {
+            if let newest = self.connectionLogEntries.first, newest.text == text {
+                return
+            }
+
+            self.connectionLogEntries.insert(
+                WatchDirectConnectionLogEntry(timeStamp: Date(), text: text),
+                at: 0
+            )
+            if self.connectionLogEntries.count > Self.maximumConnectionLogEntries {
+                self.connectionLogEntries.removeLast(self.connectionLogEntries.count - Self.maximumConnectionLogEntries)
+            }
+        }
+    }
 }
 
 // MARK: - BluetoothTransmitterDelegate
@@ -286,6 +337,12 @@ extension WatchSensorManager: BluetoothTransmitterDelegate {
             self.connectionPhase = state == .poweredOff ? .bluetoothOff : (self.configuration?.isStartable == true ? .connecting : .inactive)
         }
         log.info("bluetooth state changed: \(String(describing: state), privacy: .public)")
+
+        if state == .poweredOff {
+            appendConnectionLogEntry("Bluetooth is switched off")
+        } else if state == .poweredOn {
+            appendConnectionLogEntry("Bluetooth is switched on again")
+        }
     }
 
     func transmitterNeedsPairing(bluetoothTransmitter: BluetoothTransmitter) {
@@ -302,6 +359,7 @@ extension WatchSensorManager: BluetoothTransmitterDelegate {
 
     func error(message: String) {
         log.error("transmitter error: \(message, privacy: .public)")
+        appendConnectionLogEntry("Error: \(message)")
     }
 
     func heartBeat() {}
@@ -332,6 +390,7 @@ extension WatchSensorManager: CGMTransmitterDelegate {
         // capture the inout parameter directly
         let readingCount = glucoseData.count
         let newestReadingTimeStamp = glucoseData[0].timeStamp.description
+        let newestReadingValue = glucoseData[0].glucoseLevelRaw
 
         publishOnMain {
             self.connectionPhase = .connected
@@ -341,6 +400,8 @@ extension WatchSensorManager: CGMTransmitterDelegate {
         }
 
         log.info("received \(readingCount) reading(s), newest at \(newestReadingTimeStamp, privacy: .public)")
+
+        appendConnectionLogEntry("Reading received: \(String(format: "%.0f", newestReadingValue)) mg/dL")
 
         onReadings?(readings, sensorAge)
     }
@@ -360,6 +421,17 @@ extension WatchSensorManager: CGMG7TransmitterDelegate {
         publishOnMain {
             self.pairingRequired = pairingRequired
         }
+
+        if pairingRequired {
+            appendConnectionLogEntry("Sensor asks for Bluetooth pairing. Keep this app open and confirm the pairing request")
+        } else {
+            appendConnectionLogEntry("Bluetooth pairing is no longer required")
+        }
+    }
+
+    /// Connection milestones from the shared transmitter: the funnel shown on the page.
+    func received(connectionEvent: DexcomG7ConnectionEvent, cGMG7Transmitter _: CGMG7Transmitter) {
+        appendConnectionLogEntry(connectionEvent.displayText)
     }
 
     func received(sensorStartDate: Date?, cGMG7Transmitter: CGMG7Transmitter) {

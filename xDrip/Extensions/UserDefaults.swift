@@ -522,6 +522,8 @@ extension UserDefaults {
         /// opt-in switch for the Watch app's direct G7 sensor connection (Direct-to-Watch,
         /// docs/watch-direct-to-sensor.md). Default false: companion-only behaviour.
         case watchDirectToSensorEnabled = "watchDirectToSensorEnabled"
+        case dexcomG7WatchDirectBluetoothSlotRaw = "dexcomG7WatchDirectBluetoothSlotRaw"
+        case directToWatchHandedOverSensorName = "directToWatchHandedOverSensorName"
 
         // Trace
         /// should debug level logs be added in trace file or not, and also in NSLog
@@ -2491,6 +2493,35 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.watchDirectToSensorEnabled.rawValue)
+        }
+    }
+
+    /// The authentication slot the Watch app uses for its own direct G7 connection
+    /// (Direct-to-Watch, docs/watch-direct-to-sensor.md). The evidence-based default is the
+    /// mobile-app slot: the Wear OS reference implementation authenticates its watch exactly like
+    /// a phone, and no public implementation has ever been accepted on the smart-watch slot. The
+    /// smart-watch slot stays selectable for experiments. Used together with the enable switch to
+    /// decide whether the iPhone must hand the sensor over to the Watch (same slot) or may keep
+    /// its own connection (different slots).
+    var dexcomG7WatchDirectBluetoothSlot: DexcomG7BluetoothSlot {
+        get {
+            return DexcomG7BluetoothSlot(rawValue: UInt8(integer(forKey: Key.dexcomG7WatchDirectBluetoothSlotRaw.rawValue))) ?? .mobileApp
+        }
+        set {
+            set(Int(newValue.rawValue), forKey: Key.dexcomG7WatchDirectBluetoothSlotRaw.rawValue)
+        }
+    }
+
+    /// While the Direct-to-Watch handover is active this stores the identity (advertised name,
+    /// falling back to the transmitter ID) of the G7 sensor this app paused its own connection
+    /// for. Needed to find that sensor again for the hand-back after app restarts, because its
+    /// Core Data connection flag is false during the handover. Empty when no handover is active.
+    var directToWatchHandedOverSensorName: String? {
+        get {
+            return string(forKey: Key.directToWatchHandedOverSensorName.rawValue)?.toNilIfLength0()
+        }
+        set {
+            set(newValue, forKey: Key.directToWatchHandedOverSensorName.rawValue)
         }
     }
 

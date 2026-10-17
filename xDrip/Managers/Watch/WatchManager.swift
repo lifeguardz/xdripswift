@@ -86,8 +86,10 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.nightscoutDeviceStatusWasUpdated.rawValue, options: .new, context: nil)
 
         // Direct-to-Watch: pushing the toggle to the Watch cannot wait for the next reading, the
-        // credentials must reach the Watch app as soon as the user flips the switch
+        // credentials must reach the Watch app as soon as the user flips the switch. The channel
+        // selection changes the payload the same way (and re-evaluates the handoff).
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.watchDirectToSensorEnabled.rawValue, options: .new, context: nil)
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.dexcomG7WatchDirectBluetoothSlotRaw.rawValue, options: .new, context: nil)
 
         careLinkStatusObserver = CareLinkAccountState.shared.$snapshot
             .removeDuplicates()
@@ -119,6 +121,12 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
                     }
                 case UserDefaults.Key.watchDirectToSensorEnabled:
                     // send the fresh Direct-to-Watch configuration (or its absence) to the Watch
+                    DispatchQueue.main.async { [weak self] in
+                        self?.processWatchUpdate(updateTypes: [.status], forceComplicationUpdate: false)
+                    }
+                case UserDefaults.Key.dexcomG7WatchDirectBluetoothSlotRaw:
+                    // the fresh payload carries the new Watch channel; RootApplicationCoordinator
+                    // re-evaluates the sensor handoff in its own observer
                     DispatchQueue.main.async { [weak self] in
                         self?.processWatchUpdate(updateTypes: [.status], forceComplicationUpdate: false)
                     }
@@ -246,8 +254,9 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
 
         // Direct-to-Watch (docs/watch-direct-to-sensor.md): while a G7-family sensor with a valid
         // applicator code is active and the user opted in, send the credentials the Watch needs to
-        // authenticate as primary client on the sensor's dedicated smartwatch channel. The channel
-        // this app uses itself is never handed over.
+        // authenticate as primary client on its own channel. The Watch channel is user-selectable
+        // (mobile-app slot by default, see the research notes in the feature doc); the channel
+        // this app uses itself is only handed over for its own slot (handoff semantics).
         if UserDefaults.standard.isMaster, UserDefaults.standard.watchDirectToSensorEnabled {
             coreDataManager.mainManagedObjectContext.performAndWait {
                 guard let dexcomG7Peripheral = BLEPeripheralAccessor(coreDataManager: coreDataManager)
@@ -258,10 +267,13 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
 
                 status.directSensorConfig = WatchDirectSensorConfig(
                     enabled: true,
-                    transmitterId: dexcomG7Peripheral.transmitterId ?? "",
+                    transmitterId: WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                        transmitterId: dexcomG7Peripheral.transmitterId,
+                        bluetoothName: dexcomG7Peripheral.name
+                    ),
                     pairingCode: sensorCode,
                     useOtherApp: false,
-                    bluetoothSlotRawValue: Int(DexcomG7BluetoothSlot.smartWatch.rawValue),
+                    bluetoothSlotRawValue: Int(UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot.rawValue),
                     sensorSessionLengthAsDouble: dexcomG7.sensorSessionLength?.doubleValue
                 )
             }

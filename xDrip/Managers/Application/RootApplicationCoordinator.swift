@@ -488,6 +488,11 @@ import AppIntents
         // if the widget standby options change, update the widget data
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.allowStandByHighContrast.rawValue, options: .new, context: nil)
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.forceStandByBigNumbers.rawValue, options: .new, context: nil)
+
+        // Direct-to-Watch (docs/watch-direct-to-sensor.md): the handoff between this app's sensor
+        // connection and the Watch's own connection follows the enable switch and the Watch channel
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.watchDirectToSensorEnabled.rawValue, options: .new, context: nil)
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.dexcomG7WatchDirectBluetoothSlotRaw.rawValue, options: .new, context: nil)
         
         // if the snooze all until data changes, update the UI
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.snoozeAllAlertsUntilDate.rawValue, options: .new, context: nil)
@@ -986,7 +991,117 @@ import AppIntents
                 self.ingestWatchCollectedGlucoseData(&glucoseData)
             }
         }
-        
+
+        // enforce the handoff state for installs upgraded from a build without handoff semantics
+        applyDirectToWatchHandoffIfNeeded()
+
+    }
+
+    // MARK: - Direct-to-Watch sensor handover (docs/watch-direct-to-sensor.md)
+
+    /// Applies the sensor-ownership rules of Direct-to-Watch.
+    ///
+    /// While the feature is enabled, the Watch app owns its own authenticated connection to the
+    /// active G7-family sensor. When the Watch is configured to use the SAME authentication slot
+    /// as this app (the proven mobile-app configuration), exactly one device may own that slot at
+    /// a time, so this app pauses its own sensor connection and lives off the readings the Watch
+    /// relays. Disabling the feature - or moving the Watch to a different slot - takes the sensor
+    /// back: the stored ownership key is cleared because the Watch replaced it, and a fresh full
+    /// ownership of the slot follows on the next connection.
+    private func applyDirectToWatchHandoffIfNeeded() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.applyDirectToWatchHandoffIfNeeded()
+            }
+            return
+        }
+        guard let bluetoothPeripheralManager else { return }
+
+        let directToWatchEnabled = UserDefaults.standard.watchDirectToSensorEnabled
+        let watchSlot = UserDefaults.standard.dexcomG7WatchDirectBluetoothSlot
+
+        let g7Sensors = bluetoothPeripheralManager.getBluetoothPeripherals().compactMap { $0 as? DexcomG7 }
+        let handedOverName = UserDefaults.standard.directToWatchHandedOverSensorName
+
+        // The sensor involved in a handover: either the currently connected one, or — after an
+        // app restart, and while its connection flag is still false — the recorded one.
+        let handedOverSensor = handedOverName.flatMap { name in
+            g7Sensors.first { $0.blePeripheral.name == name || $0.blePeripheral.transmitterId == name }
+        }
+
+        guard directToWatchEnabled else {
+            // feature disabled: take a handed-over sensor back
+            if let sensor = handedOverSensor, !sensor.blePeripheral.shouldconnect {
+                resumeDirectToWatchSensor(sensor, bluetoothPeripheralManager: bluetoothPeripheralManager)
+            }
+            UserDefaults.standard.directToWatchHandedOverSensorName = nil
+            return
+        }
+
+        if let sensor = handedOverSensor, !sensor.blePeripheral.shouldconnect {
+            // the handover is already active for this sensor; re-evaluate it against the current
+            // Watch channel (the user may have changed the channel while the handover was active)
+            if sensor.effectiveDexcomG7BluetoothSlot() == watchSlot {
+                return
+            }
+
+            resumeDirectToWatchSensor(sensor, bluetoothPeripheralManager: bluetoothPeripheralManager)
+            UserDefaults.standard.directToWatchHandedOverSensorName = nil
+            return
+        }
+
+        // no handover active yet: decide whether the connected sensor must be handed over
+        guard let sensor = g7Sensors.first(where: { $0.blePeripheral.shouldconnect }) else {
+            // no primary-mode G7 sensor to hand over; clear a stale note from a previous sensor
+            if handedOverSensor == nil {
+                UserDefaults.standard.directToWatchHandedOverSensorName = nil
+            }
+            return
+        }
+
+        if sensor.effectiveDexcomG7BluetoothSlot() != watchSlot {
+            // The Watch claims a different slot than this app: the original coexistence design
+            // applies and both devices may try to own their own slot independently.
+            UserDefaults.standard.directToWatchHandedOverSensorName = nil
+            return
+        }
+
+        // hand the sensor over: pause this app's own connection and record which sensor was paused
+        let sensorIdentity = sensor.blePeripheral.name.toNilIfLength0() ?? sensor.blePeripheral.transmitterId
+        UserDefaults.standard.directToWatchHandedOverSensorName = sensorIdentity
+        bluetoothPeripheralManager.disconnect(fromBluetoothPeripheral: sensor)
+        bluetoothPeripheralManager.setBluetoothTransmitterToNil(forBluetoothPeripheral: sensor)
+
+        trace(
+            "Direct to Watch: handed the sensor over to the Watch (watch and app use the same channel 0x%{public}@). This app resumes its own connection when the feature is disabled",
+            log: log,
+            category: ConstantsLog.categoryRootView,
+            type: .info,
+            String(format: "%02X", watchSlot.rawValue)
+        )
+    }
+
+    /// Takes a handed-over sensor back: clears the app's stored ownership keys (the Watch replaced
+    /// the slot's key while it owned the sensor) and reconnects, which starts one fresh full
+    /// ownership with the sensor's own pairing code.
+    private func resumeDirectToWatchSensor(_ sensor: DexcomG7, bluetoothPeripheralManager: BluetoothPeripheralManager) {
+        let transmitterIDs = Set([
+            sensor.blePeripheral.name,
+            sensor.blePeripheral.transmitterId
+        ].compactMap { $0 })
+        transmitterIDs.forEach {
+            DexcomG7AuthBridge.clearPersistedSharedKeys(forTransmitterID: $0)
+        }
+
+        bluetoothPeripheralManager.setConnectionEnabled(true, for: sensor)
+        bluetoothPeripheralManager.connect(to: sensor)
+
+        trace(
+            "Direct to Watch: took the sensor back from the Watch. The stored ownership key was cleared and a fresh ownership will follow on the next connection",
+            log: log,
+            category: ConstantsLog.categoryRootView,
+            type: .info
+        )
     }
 
     private func checkNotLoopingAlertWithLatestDeviceStatus() {
@@ -1395,6 +1510,9 @@ import AppIntents
         case UserDefaults.Key.liveActivityType, UserDefaults.Key.carPlayLiveActivityType, UserDefaults.Key.liveActivityShowIOBCOB, UserDefaults.Key.allowStandByHighContrast, UserDefaults.Key.forceStandByBigNumbers:
             // check and configure the live activity and widgets if applicable
             updateLiveActivityAndWidgets(forceRestart: false)
+
+        case UserDefaults.Key.watchDirectToSensorEnabled, UserDefaults.Key.dexcomG7WatchDirectBluetoothSlotRaw:
+            applyDirectToWatchHandoffIfNeeded()
             
         case UserDefaults.Key.nightscoutFollowType, UserDefaults.Key.therapyDataSourceType:
             // check and configure the live activity if applicable

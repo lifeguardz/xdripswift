@@ -78,6 +78,14 @@ class Texts_WatchApp {
         return NSLocalizedString("directConnectionPairingNeeded", tableName: filename, bundle: Bundle.main, value: "Bluetooth pairing needed: keep this app open and confirm the pairing request within the next few minutes.", comment: "watch app - shown while the sensor requires the user to confirm the system Bluetooth pairing request")
     }()
 
+    static let directConnectionLog: String = {
+        return NSLocalizedString("directConnectionLog", tableName: filename, bundle: Bundle.main, value: "Connection Log", comment: "watch app - header of the connection diagnostics section on the direct connection page")
+    }()
+
+    static let directConnectionLogEmpty: String = {
+        return NSLocalizedString("directConnectionLogEmpty", tableName: filename, bundle: Bundle.main, value: "No connection activity yet. Entries appear as soon as the connection runs.", comment: "watch app - shown when the connection log has no entries")
+    }()
+
     // MARK: - Watch local glucose alerts for directly collected readings
 
     static let alertUrgentLowTitle: String = {

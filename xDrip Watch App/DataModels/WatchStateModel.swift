@@ -145,6 +145,7 @@ final class WatchStateModel: NSObject, ObservableObject {
     @Published private(set) var latestDirectReadingTimeStamp: Date?
     @Published private(set) var directSensorStartDate: Date?
     @Published private(set) var directSensorPairingRequired = false
+    @Published private(set) var directSensorConnectionLog: [WatchDirectConnectionLogEntry] = []
 
     private var directSensorCancellables = Set<AnyCancellable>()
 
@@ -199,6 +200,11 @@ final class WatchStateModel: NSObject, ObservableObject {
         directSensorManager.$pairingRequired
             .receive(on: DispatchQueue.main)
             .sink { [weak self] required in self?.directSensorPairingRequired = required }
+            .store(in: &directSensorCancellables)
+
+        directSensorManager.$connectionLogEntries
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] entries in self?.directSensorConnectionLog = entries }
             .store(in: &directSensorCancellables)
 
         // resume a persisted direct connection before the iPhone answers the first status request
@@ -983,7 +989,7 @@ final class WatchStateModel: NSObject, ObservableObject {
                 transmitterId: directSensorConfigDictionary["transmitterId"] as? String ?? "",
                 pairingCode: directSensorConfigDictionary["pairingCode"] as? String ?? "",
                 useOtherApp: directSensorConfigDictionary["useOtherApp"] as? Bool ?? false,
-                bluetoothSlotRawValue: directSensorConfigDictionary["bluetoothSlotRawValue"] as? Int ?? Int(DexcomG7BluetoothSlot.smartWatch.rawValue),
+                bluetoothSlotRawValue: directSensorConfigDictionary["bluetoothSlotRawValue"] as? Int ?? Int(DexcomG7BluetoothSlot.mobileApp.rawValue),
                 sensorSessionLengthAsDouble: directSensorConfigDictionary["sensorSessionLengthAsDouble"] as? Double
             )
 

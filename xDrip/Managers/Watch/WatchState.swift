@@ -53,7 +53,7 @@ struct WatchStatus: WatchPayload {
     var directSensorConfig: WatchDirectSensorConfig? = nil
 }
 
-/// Everything the Watch needs to authenticate as a primary client on the G7 smartwatch channel.
+/// Everything the Watch needs to authenticate as a primary client on the chosen G7 channel.
 ///
 /// The four-digit applicator code is the sensor's pairing secret. It travels only over the paired,
 /// encrypted WatchConnectivity transport and is never persisted on the iPhone beyond the active
@@ -71,11 +71,39 @@ struct WatchDirectSensorConfig: WatchPayload {
     /// Watch v1 always authenticates as primary client; coexistence is a phone-only concept.
     var useOtherApp: Bool = false
 
-    /// `DexcomG7BluetoothSlot` raw value. Always the smartwatch slot.
-    var bluetoothSlotRawValue: Int = Int(DexcomG7BluetoothSlot.smartWatch.rawValue)
+    /// `DexcomG7BluetoothSlot` raw value for the Watch's own connection. The evidence-based
+    /// default is the mobile-app slot (proven by the Wear OS reference implementation); the
+    /// smartwatch slot stays selectable for experiments (docs/watch-direct-to-sensor.md).
+    var bluetoothSlotRawValue: Int = Int(DexcomG7BluetoothSlot.mobileApp.rawValue)
 
     /// Supported total session length in seconds, when known.
     var sensorSessionLengthAsDouble: Double? = nil
+
+    /// Picks the sensor identity the Watch should scan for.
+    ///
+    /// The Watch matches the advertised `DX...` name, and matching MUST be exact so the Watch
+    /// never attempts authentication against a neighbour's sensor. The saved record's
+    /// transmitterId can still be the automatic-discovery placeholder (`DX0000`), which maps to a
+    /// "DX" wildcard on the transmitter; when the Core Data record already knows the real
+    /// Bluetooth name, prefer it. Returns an empty string when no precise identity is known yet -
+    /// the Watch configuration then stays inert until the iPhone has connected to the sensor once.
+    static func resolvedWatchDirectTransmitterName(transmitterId: String?, bluetoothName: String?) -> String {
+        if let storedId = transmitterId?.uppercased(),
+           storedId != ConstantsBluetoothPairing.dummyDexcomG7TypeTransmitterId.uppercased(),
+           storedId != "DX",
+           storedId.hasPrefix("DX"),
+           storedId.count > 2 {
+            return transmitterId ?? ""
+        }
+
+        if let bluetoothName,
+           bluetoothName.uppercased().hasPrefix("DX"),
+           bluetoothName.count > 2 {
+            return bluetoothName
+        }
+
+        return ""
+    }
 }
 
 /// current BG chart data used to manage watch views

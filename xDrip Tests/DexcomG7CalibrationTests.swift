@@ -209,6 +209,58 @@ final class DexcomG7CalibrationTests: XCTestCase {
         )
     }
 
+    /// The Watch scans for the advertisement name exactly, so the direct-connection payload must
+    /// never carry the automatic-discovery placeholder when the real Bluetooth name is known.
+    func testWatchDirectTransmitterNamePrefersRealNameOverDiscoveryPlaceholder() {
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: ConstantsBluetoothPairing.dummyDexcomG7TypeTransmitterId,
+                bluetoothName: "DXCM0B"
+            ),
+            "DXCM0B"
+        )
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: "DX",
+                bluetoothName: "DXCM0B"
+            ),
+            "DXCM0B"
+        )
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: nil,
+                bluetoothName: "DXCM0B"
+            ),
+            "DXCM0B"
+        )
+
+        // a manually entered, genuine transmitter ID wins over any other stored value
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: "DX02AB",
+                bluetoothName: "DX02AB"
+            ),
+            "DX02AB"
+        )
+
+        // no precise identity yet: an empty name keeps the Watch configuration inert until the
+        // iPhone has connected to the sensor once and stored its real Bluetooth name
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: ConstantsBluetoothPairing.dummyDexcomG7TypeTransmitterId,
+                bluetoothName: nil
+            ),
+            ""
+        )
+        XCTAssertEqual(
+            WatchDirectSensorConfig.resolvedWatchDirectTransmitterName(
+                transmitterId: nil,
+                bluetoothName: nil
+            ),
+            ""
+        )
+    }
+
     func testDexcomProductNameResolverPrefersARealSavedIdentifier() {
         XCTAssertEqual(
             DexcomProductNameResolver.title(

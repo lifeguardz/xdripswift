@@ -575,6 +575,8 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         let discoveredName = peripheral.name ?? "nil"
         trace("Did discover peripheral with name: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .info, discoveredName)
 
+        reportConnectionEvent(.discoveredSensor(name: discoveredName))
+
         if useOtherApp {
             // Scanning is only a wake-up signal in coexistence. We never connect to the advertised
             // peripheral directly because doing so can compete with the Dexcom app. Instead ask
@@ -673,12 +675,16 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
             cycleId
         )
 
+        reportConnectionEvent(.connected)
+
         handleDidConnectCommon(peripheral)
         peripheral.discoverServices([CBUUID(string: CBUUID_Service_G7)])
     }
 
     override func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
         super.centralManager(central, didDisconnectPeripheral: peripheral, error: error)
+
+        reportConnectionEvent(.disconnected(error: error?.localizedDescription))
 
         // Backfill notifications can precede the current glucose packet that supplies sensor age.
         // Give pending frames one final opportunity to resolve, deliver the complete chronological
@@ -721,6 +727,8 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
             trace("    no G7 characteristics were discovered", log: log, category: ConstantsLog.categoryCGMG7, type: .error)
             return
         }
+
+        reportConnectionEvent(.characteristicsDiscovered)
 
         // Cache every known characteristic from this discovery pass. Unknown characteristics are
         // ignored so a future firmware addition does not disturb the currently supported flow.
@@ -787,21 +795,24 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         super.peripheral(peripheral, didUpdateNotificationStateFor: characteristic, error: error)
 
         if let error {
-            if encryptionInsufficient(error: error) {
-                if useOtherApp {
-                    // Coexistence never authenticates or takes ownership. The Dexcom app must complete
-                    // authentication. The normal sensor disconnect then ends this passive attempt and
-                    // the standard Bluetooth lifecycle reconnects on a later wake.
-                    trace("G7 coexistence is waiting for the Dexcom app to authenticate", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
-                } else {
-                    trace("G7 notification update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
-                    // Primary mode owns the encrypted link. A rejected notification subscription on
-                    // Write_Control or Auth characteristics without a bond means the sensor now needs
-                    // the user to confirm the system pairing request.
-                    reportBluetoothPairingState(true)
-                }
+            trace("G7 notification update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
+            reportConnectionEvent(.notificationFailed(
+                characteristic: CharacteristicUUID(rawValue: characteristic.uuid.uuidString)?.description ?? characteristic.uuid.uuidString,
+                error: error.localizedDescription
+            ))
+
+            guard encryptionInsufficient(error: error) else { return }
+
+            if useOtherApp {
+                // Coexistence never authenticates or takes ownership. The Dexcom app must complete
+                // authentication. The normal sensor disconnect then ends this passive attempt and
+                // the standard Bluetooth lifecycle reconnects on a later wake.
+                trace("G7 coexistence is waiting for the Dexcom app to authenticate", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
             } else {
-                trace("G7 notification update failed for %{public}@: %{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .error, characteristic.uuid.uuidString, error.localizedDescription)
+                // Primary mode owns the encrypted link. A rejected notification subscription on
+                // Write_Control or Auth characteristics without a bond means the sensor now needs
+                // the user to confirm the system pairing request.
+                reportBluetoothPairingState(true)
             }
             return
         }
@@ -1007,6 +1018,14 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         writeDataToPeripheral(data: data, characteristicToWriteTo: characteristic, type: type)
     }
 
+    func authSessionDidStartAuthentication(fullOwnership: Bool) {
+        reportConnectionEvent(.authenticationStarted(fullOwnership: fullOwnership))
+    }
+
+    func authSessionDidReceiveStatus(authenticated: Bool, paired: Bool) {
+        reportConnectionEvent(.authenticationStatus(authenticated: authenticated, paired: paired))
+    }
+
     func authSessionDidAuthenticate() {
         guard !useOtherApp, !primaryAuthenticated else { return }
         // This callback can only originate from the primary auth session. Set no coexistence state
@@ -1017,6 +1036,8 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         refreshMaximumSensorAgeSnapshot()
         updateActiveTransmitterIdIfNeeded()
         trace("G7 primary authentication complete. Arming Write_Control", log: log, category: ConstantsLog.categoryCGMG7, type: .info)
+
+        reportConnectionEvent(.ownershipConfirmed)
 
         if let writeControlCharacteristic {
             if writeControlCharacteristic.isNotifying { sendPrimaryGlucoseRequestIfReady() }
@@ -1033,6 +1054,9 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         primaryAuthenticationBlocked = true
         resetCalibrationConnectionState(requeueInFlightCommand: true)
         trace("G7 primary authentication stopped. The saved key was preserved", log: log, category: ConstantsLog.categoryCGMG7, type: .error)
+
+        reportConnectionEvent(.authenticationRejectedPersistedKey)
+
         disconnect()
     }
 
@@ -2123,6 +2147,24 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         case .connected, .connecting: disconnect()
         default: connect()
         }
+    }
+
+    // MARK: - connection diagnostics
+
+    /// Forwards one connection milestone to the delegate on the main thread. Pure diagnostics:
+    /// failures to deliver (or dropped events) must never influence the protocol flow.
+    private func reportConnectionEvent(_ event: DexcomG7ConnectionEvent) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.cGMG7TransmitterDelegate?.received(connectionEvent: event, cGMG7Transmitter: self)
+        }
+    }
+
+    /// Marks the stored authentication key as untrustworthy, so the next connection performs a
+    /// fresh full ownership instead of a short authentication. Used by the Direct-to-Watch
+    /// handover: the slot was re-owned while the Watch was disabled and must be taken back.
+    func requestClearPersistedAuthentication() {
+        clearPersistedAuthenticationWhenIdentityIsKnown = true
     }
 
     /// Attach immediately when the Dexcom app is already connected. Otherwise keep scanning and

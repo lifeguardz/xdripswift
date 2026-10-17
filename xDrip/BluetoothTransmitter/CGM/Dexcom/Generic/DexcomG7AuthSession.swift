@@ -21,6 +21,12 @@ protocol DexcomG7AuthSessionTransport: AnyObject {
 
     /// Schedules authentication fragments on the transmitter's Core Bluetooth queue.
     func authSessionSchedule(after delay: TimeInterval, _ action: @escaping () -> Void)
+
+    /// The state machine sent its first control packet on this connection.
+    func authSessionDidStartAuthentication(fullOwnership: Bool)
+
+    /// The sensor answered the authentication request with its `0x05` status.
+    func authSessionDidReceiveStatus(authenticated: Bool, paired: Bool)
 }
 
 /// Implements the G7 primary authentication and ownership protocol.
@@ -370,6 +376,7 @@ final class DexcomG7AuthSession {
                 TroubleshootingDexcomBluetoothChannel(bluetoothSlot).name,
                 String(format: "%02X", bluetoothSlot.rawValue)
             )
+            transport?.authSessionDidStartAuthentication(fullOwnership: usingFullBootstrap)
             writeControl(packet)
         } catch {
             fail("could not create the initial authentication packet: \(error.localizedDescription)")
@@ -400,6 +407,7 @@ final class DexcomG7AuthSession {
         }
 
         trace("G7 primary auth status: authenticated=%{public}@ paired=%{public}@", log: log, category: ConstantsLog.categoryCGMG7, type: .info, message.authenticated.description, message.paired.description)
+        transport?.authSessionDidReceiveStatus(authenticated: message.authenticated, paired: message.paired)
 
         switch Self.authenticationStatusAction(
             usingFullBootstrap: usingFullBootstrap,
