@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** in progress — Phases 0–4 complete (Phase 4: background refresh + watch-local high/low alerts; characteristic monitoring and complication reload verified as already covered). Pending: Phase 5 (hardening docs) and real-sensor hardware validation.
+- **Status:** code complete for Phases 0–5 (Direct connection, data flow, settings UI, background execution, watch-local alerts, safety + conflict documentation). **Pending: real-sensor hardware validation** — follow the checklist in Phase 5.
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -271,11 +271,42 @@ Add to the `xDrip Watch App` target's Sources build phase:
   `transferUserInfo` from the Watch is queued by watchOS and delivered whenever the iPhone becomes
   available, so collected readings already survive suspension without a custom flush path.
 
-### Phase 5 — Hardening + later phases
+### Phase 5 — Hardening + later phases — **documentation complete, hardware work pending**
 
-- Battery drain measurement and reconnect-tuning on real hardware (Series 4+ / watchOS 10 minimum, as README states).
-- Document conflicts: official Dexcom watch app competes for the smartwatch channel.
-- Later (separate efforts, same pattern): G6/ONE transmitter port, Libre transmitters, watch-entered calibrations, optional watch-side upload when phone unreachable for long periods.
+Done in this repository:
+- **Conflict documentation** (see the "Known conflicts and limitations" section below): official
+  Dexcom app competes for the smartwatch channel; submersion behaviour; the iOS settings footer and
+  the Watch sensor page carry the safety note mirroring the README warning.
+- **Safety note** surfaces in the two places that expose the feature: the G7 transmitter settings
+  footer (iOS) and the Watch sensor page footer.
+
+Pending (requires real hardware, see the checklist below):
+- Battery drain measurement and reconnect-tuning on real hardware (Series 4+ / watchOS 10 minimum,
+  as README states).
+- Multi-hour background-execution verification.
+
+Later (separate efforts, same pattern): G6/ONE transmitter port, Libre transmitters,
+watch-entered calibrations, optional watch-side upload when phone unreachable for long periods,
+and a dedicated watchOS unit test target for the chart merge logic (deferred: creating a watchOS
+test target means new native target + scheme surgery in `project.pbxproj`; the merge logic is kept
+pure and centralised in `WatchStateModel` so the extraction stays small when it happens).
+
+**Hardware validation checklist** (run with a real G7/ONE+/Stelo sensor, paired Watch + iPhone):
+
+1. **Enable flow:** iPhone → sensor settings → enable "Apple Watch Direct Connection" → status
+   pushes the configuration → Watch sensor page shows Connecting then Connected.
+2. **Direct readings:** put the iPhone in airplane mode → chart + big number + complication update
+   from the Watch's own connection every 5 minutes.
+3. **Relay + dedupe:** leave airplane mode → the queued `watchCollectedReadings` userInfo payloads
+   arrive → readings land in the iPhone's history with no duplicates (both-connected overlap and
+   the away-backlog case).
+4. **Toggle round-trip:** disable Direct from the Watch page → status confirms → connection stops;
+   toggle from the iPhone side likewise. Companion-only behaviour restored with the toggle off.
+5. **Background longevity:** swype the Watch app away → readings keep arriving hourly +
+   complications stay fresh ≥ 3 h (background refresh + characteristic wakes).
+6. **Watch-local alerts:** let the sensor drift beyond low/urgent-low without the iPhone → local
+   notification fires once per excursion; verify cooldown on boundary oscillation.
+7. **Battery:** measure Watch battery drain over 24 h with Direct on vs off (same usage pattern).
 
 ---
 
@@ -291,6 +322,28 @@ Add to the `xDrip Watch App` target's Sources build phase:
 | Official Dexcom watch app already installed | Both compete for the smartwatch channel | Document; detect and surface "smartwatch channel busy" state |
 | Upstream drift makes the fork hard to rebase | Accepted (personal fork first) | Keep changes additive and phase-isolated to ease future upstream PRs |
 | Swimming/submersion drops readings | Hardware reality, identical to official app | Document it |
+
+---
+
+## 8a. Known conflicts and limitations
+
+- **Official Dexcom watch app / Dexcom Direct:** both apps authenticate as primary clients on the
+  G7's dedicated smartwatch channel. Only one can own it at a time; if the official Dexcom watch
+  app is installed and connected, this Watch app cannot authenticate (and vice versa). Remove or
+  disconnect the other watch app before enabling Direct here. The iPhone app and AID integrations
+  are unaffected — they use their own channel.
+- **Swimming / submersion:** the Dexcom G7's Bluetooth link degrades in water, exactly as with the
+  official apps. Expect gaps in readings during submersion; the sensor keeps running and backfills
+  where the protocol allows.
+- **Background execution is refresh-driven:** watchOS does not guarantee continuous run time.
+  Direct-to-Watch combines characteristic-notification wakes with scheduled application refresh
+  tasks (the same model as the official Dexcom app). Long suspension gaps are bridged by
+  reconnect-on-wake and the queued read relay, not by a guaranteed always-on process.
+- **The sensor's applicator code is secret input:** it crosses to the Watch only over the paired,
+  encrypted WatchConnectivity transport and is read from the iPhone's own sensor record.
+- **Not a medical device:** xDrip4iOS is experimental software (see README safety warning). The
+  Direct-to-Watch feature inherits this warning; it is surfaced on the Watch sensor page and in
+  the iOS sensor settings footer.
 
 ---
 

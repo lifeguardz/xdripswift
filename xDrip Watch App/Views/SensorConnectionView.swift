@@ -63,6 +63,11 @@ struct SensorConnectionView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
             }
+
+            Text(Texts_WatchApp.directConnectionSafetyNote)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(4)
         }
     }
 

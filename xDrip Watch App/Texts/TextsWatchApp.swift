@@ -100,4 +100,8 @@ class Texts_WatchApp {
         return NSLocalizedString("alertUnitMmol", tableName: filename, bundle: Bundle.main, value: "mmol/L", comment: "watch app - mmol/L unit label in local alert bodies")
     }()
 
+    static let directConnectionSafetyNote: String = {
+        return NSLocalizedString("directConnectionSafetyNote", tableName: filename, bundle: Bundle.main, value: "Experimental software, not a medical device. Never rely on it as the only source of glucose information.", comment: "watch app - safety disclaimer below the direct connection settings, mirroring the project README warning")
+    }()
+
 }
