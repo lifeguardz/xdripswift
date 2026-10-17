@@ -14,6 +14,9 @@ import WatchKit
 
 @main
 struct xDrip_Watch_AppApp: App {
+    /// keeps the direct sensor connection alive with periodic background refreshes while suspended
+    @WKApplicationDelegateAdaptor(WatchAppDelegate.self) private var appDelegate
+
     @StateObject var watchState = WatchStateModel()
     
     var body: some Scene {

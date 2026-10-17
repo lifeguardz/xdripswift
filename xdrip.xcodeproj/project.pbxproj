@@ -148,6 +148,8 @@
 		47A6ABE62B790CC70047A4BA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 47A6ABE52B790CC70047A4BA /* Assets.xcassets */; };
 		47A6ABE92B790CC70047A4BA /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 47A6ABE82B790CC70047A4BA /* Preview Assets.xcassets */; };
 		7A1D0C5E0000000000D0052 /* SensorConnectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C9 /* SensorConnectionView.swift */; };
+		7A1D0C5E0000000000D0053 /* WatchAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000CA /* WatchAppDelegate.swift */; };
+		7A1D0C5E0000000000D0054 /* WatchGlucoseAlertEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000CB /* WatchGlucoseAlertEngine.swift */; };
 		47A6ABEF2B7949B80047A4BA /* WatchStateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47A6ABEE2B7949B80047A4BA /* WatchStateModel.swift */; };
 		7A1D0C5E0000000000D0051 /* WatchSensorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C8 /* WatchSensorManager.swift */; };
 		47A6ABFF2B795DA30047A4BA /* GlucoseChartType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C210ED2B5298EB00005711 /* GlucoseChartType.swift */; };
@@ -1162,6 +1164,8 @@
 		47A6ABE82B790CC70047A4BA /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		47A6ABEE2B7949B80047A4BA /* WatchStateModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStateModel.swift; sourceTree = "<group>"; };
 		7A1D0C5E00000000000000C9 /* SensorConnectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SensorConnectionView.swift; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000CA /* WatchAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchAppDelegate.swift; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000CB /* WatchGlucoseAlertEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchGlucoseAlertEngine.swift; sourceTree = "<group>"; };
 		7A1D0C5E00000000000000C8 /* WatchSensorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSensorManager.swift; sourceTree = "<group>"; };
 		47A8B8862E392BF700081CBD /* LiveActivityViewContentActivityFamilies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityViewContentActivityFamilies.swift; sourceTree = "<group>"; };
 		47AC0EE42FCE1FAF0098B607 /* xdrip v17.xcdatamodel */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcdatamodel; path = "xdrip v17.xcdatamodel"; sourceTree = "<group>"; };
@@ -2349,6 +2353,8 @@
 			children = (
 				47A6ABEE2B7949B80047A4BA /* WatchStateModel.swift */,
 				7A1D0C5E00000000000000C8 /* WatchSensorManager.swift */,
+				7A1D0C5E00000000000000CA /* WatchAppDelegate.swift */,
+				7A1D0C5E00000000000000CB /* WatchGlucoseAlertEngine.swift */,
 				474822452C01097D0052D4FB /* NotificationController.swift */,
 			);
 			path = DataModels;
@@ -4546,6 +4552,8 @@
 				474822482C010F380052D4FB /* TextsAlerts.swift in Sources */,
 				4793599A2B8A2A4E007D3CEE /* MainViewInfoView.swift in Sources */,
 				7A1D0C5E0000000000D0052 /* SensorConnectionView.swift in Sources */,
+				7A1D0C5E0000000000D0053 /* WatchAppDelegate.swift in Sources */,
+				7A1D0C5E0000000000D0054 /* WatchGlucoseAlertEngine.swift in Sources */,
 				47A6ABEF2B7949B80047A4BA /* WatchStateModel.swift in Sources */,
 				7A1D0C5E0000000000D0051 /* WatchSensorManager.swift in Sources */,
 				47A6ABE22B790CC60047A4BA /* xDripWatchApp.swift in Sources */,

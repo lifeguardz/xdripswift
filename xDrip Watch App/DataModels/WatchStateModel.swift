@@ -147,6 +147,11 @@ final class WatchStateModel: NSObject, ObservableObject {
 
     private var directSensorCancellables = Set<AnyCancellable>()
 
+    /// Watch-local urgent-low/low/high/urgent-high notifications for directly collected readings.
+    /// The iPhone keeps owning the alerting pipeline whenever it is reachable; these local alerts
+    /// matter for the airplane-mode scenario of Direct-to-Watch.
+    private let glucoseAlertEngine = WatchGlucoseAlertEngine()
+
     // we use the following to record when the user has manually requested a state update on each view so that we can trigger the animation on just this view
     // this is to prevent the UI animating "pending animations" when we switch view tabs
     @Published var updateBigNumberViewDate: Date = .now
@@ -158,6 +163,9 @@ final class WatchStateModel: NSObject, ObservableObject {
 
         session.delegate = self
         session.activate()
+
+        // link the app delegate so background refresh tasks can reach this state
+        WatchAppDelegate.instance?.watchState = self
 
         // readings collected by the direct sensor connection arrive on a Core Bluetooth queue
         directSensorManager.onReadings = { [weak self] readings, sensorAge in
@@ -531,6 +539,20 @@ final class WatchStateModel: NSObject, ObservableObject {
         directSensorManager.ensureConnected()
     }
 
+    /// Called from the background refresh task (WatchAppDelegate): reconnect attempt and
+    /// housekeeping while the app is suspended. Readings arriving through characteristic
+    /// notifications wake the app on their own; this wake exists for the reconnection itself.
+    func handleBackgroundWake() {
+        guard directConnectionPhase != .inactive else { return }
+
+        ensureDirectSensorConnection()
+    }
+
+    /// Logging hook used by WatchAppDelegate for best-effort background refresh errors.
+    func logBackgroundRefreshFailure(_ error: Error) {
+        log.error("background refresh scheduling failed: \(error.localizedDescription, privacy: .public)")
+    }
+
     /// Asks the iPhone to enable or disable the Direct-to-Watch connection.
     ///
     /// The iPhone owns the setting and the sensor credentials, so this only forwards the request:
@@ -778,6 +800,17 @@ final class WatchStateModel: NSObject, ObservableObject {
         refreshDerivedStateFromChart(newestSlopeOrdinal: readings[0].slopeOrdinal)
         updateComplicationData()
         relayCollectedReadingsToPhone(readings)
+
+        // watch-local high/low alerts use only locally collected readings; while the iPhone is
+        // reachable its own alerting pipeline stays the source of voice
+        glucoseAlertEngine.evaluate(
+            readingMgDl: readings[0].valueMgDl,
+            isMgDl: isMgDl,
+            urgentLowLimitInMgDl: urgentLowLimitInMgDl,
+            lowLimitInMgDl: lowLimitInMgDl,
+            highLimitInMgDl: highLimitInMgDl,
+            urgentHighLimitInMgDl: urgentHighLimitInMgDl
+        )
     }
 
     private func mergeReadingIntoChart(value: Double, date: Date) {

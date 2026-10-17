@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** in progress — Phases 0–3 complete (shared G7 core compiles for watchOS; watch-side sensor manager, config sync, reading relay and phone-side ingestion implemented; both targets build; unit tests show zero regressions vs. baseline). Pending: Phase 4 (background execution, alerts, complications) and real-sensor hardware validation.
+- **Status:** in progress — Phases 0–4 complete (Phase 4: background refresh + watch-local high/low alerts; characteristic monitoring and complication reload verified as already covered). Pending: Phase 5 (hardening docs) and real-sensor hardware validation.
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -246,7 +246,30 @@ Add to the `xDrip Watch App` target's Sources build phase:
 - Verify/declare characteristic monitoring so watchOS wakes the app per glucose notification; add `WKRefreshBackgroundTask` handling for housekeeping (reconnect attempts, buffer flush).
 - Reload existing complications directly from watch-collected readings (`updateComplicationData()` already writes the shared model — it just gets fed locally now).
 - Watch-local high/low notifications using the already-synced limit values (`urgentLow/low/high/urgentHigh`).
-- **Acceptance:** Readings continue (and complications refresh) while the watch app is not in the foreground over a multi-hour real-world test; alert fires on the watch without the iPhone.
+- **Acceptance:** Readings continue (and complications refresh) while the watch app is not in the foreground over a multi-hour real-world test; alert fires on the watch without the iPhone. *(Implemented; multi-hour hardware test pending.)*
+
+**What was actually implemented:**
+
+- **Characteristic monitoring:** verified — the shared `BluetoothTransmitter` already enables
+  notification on the receive characteristic (`setNotifyValue(true, ...)` at discovery), so
+  characteristic updates wake the app directly under the `bluetooth-central` background mode
+  declared in Phase 0. No additional declaration was needed.
+- **Complications:** verified — `updateComplicationData()` + `WidgetCenter.reloadAllTimelines()`
+  already run on every locally collected reading (Phase 2 merge path).
+- **`WatchAppDelegate`** (new, `WKApplicationDelegateAdaptor`): handles
+  `WKApplicationRefreshBackgroundTask` by nudging the connection (`handleBackgroundWake()`) and
+  schedules the next refresh via `WKApplication.scheduleBackgroundRefresh(withPreferredDate:)`;
+  also schedules on resign-active. 10-minute cadence, skipped while inactive/bluetooth-off — pure
+  reconnect housekeeping, since data flow itself is notification-driven.
+- **`WatchGlucoseAlertEngine`** (new): watch-local urgent-low / low / high / urgent-high
+  notifications computed from the synced limit values on every directly collected reading. One
+  notification per excursion episode (state re-arms when back in the normal range) plus a
+  30-minute per-category cooldown against boundary oscillation spam; urgent categories use
+  critical interruption level and critical sound. Authorization is requested lazily at first
+  delivery. The iPhone keeps owning its own alerting pipeline whenever reachable.
+- **Deviation from the outline:** the "ring buffer flush" housekeeping is unnecessary —
+  `transferUserInfo` from the Watch is queued by watchOS and delivered whenever the iPhone becomes
+  available, so collected readings already survive suspension without a custom flush path.
 
 ### Phase 5 — Hardening + later phases
 

@@ -74,4 +74,30 @@ class Texts_WatchApp {
         return NSLocalizedString("directConnectionLastReading", tableName: filename, bundle: Bundle.main, value: "Last direct reading", comment: "watch app - label for the time of the last directly collected reading")
     }()
 
+    // MARK: - Watch local glucose alerts for directly collected readings
+
+    static let alertUrgentLowTitle: String = {
+        return NSLocalizedString("alertUrgentLowTitle", tableName: filename, bundle: Bundle.main, value: "⚠️ Urgent Low", comment: "watch app - critical alert title for an urgent low glucose")
+    }()
+
+    static let alertLowTitle: String = {
+        return NSLocalizedString("alertLowTitle", tableName: filename, bundle: Bundle.main, value: "🟡 Low Glucose", comment: "watch app - alert title for a low glucose")
+    }()
+
+    static let alertHighTitle: String = {
+        return NSLocalizedString("alertHighTitle", tableName: filename, bundle: Bundle.main, value: "🟠 High Glucose", comment: "watch app - alert title for a high glucose")
+    }()
+
+    static let alertUrgentHighTitle: String = {
+        return NSLocalizedString("alertUrgentHighTitle", tableName: filename, bundle: Bundle.main, value: "🔴 Urgent High", comment: "watch app - critical alert title for an urgent high glucose")
+    }()
+
+    static let alertUnitMgDl: String = {
+        return NSLocalizedString("alertUnitMgDl", tableName: filename, bundle: Bundle.main, value: "mg/dL", comment: "watch app - mg/dL unit label in local alert bodies")
+    }()
+
+    static let alertUnitMmol: String = {
+        return NSLocalizedString("alertUnitMmol", tableName: filename, bundle: Bundle.main, value: "mmol/L", comment: "watch app - mmol/L unit label in local alert bodies")
+    }()
+
 }
