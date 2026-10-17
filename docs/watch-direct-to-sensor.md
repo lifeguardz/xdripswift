@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** in progress — Phases 0–2 complete (shared G7 core compiles for watchOS; watch-side sensor manager, config sync, reading relay and phone-side ingestion implemented; both targets build; unit tests show zero regressions vs. baseline). Pending: Phase 3 (settings UI + mode switching) and real-sensor hardware validation.
+- **Status:** in progress — Phases 0–3 complete (shared G7 core compiles for watchOS; watch-side sensor manager, config sync, reading relay and phone-side ingestion implemented; both targets build; unit tests show zero regressions vs. baseline). Pending: Phase 4 (background execution, alerts, complications) and real-sensor hardware validation.
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -214,7 +214,32 @@ Add to the `xDrip Watch App` target's Sources build phase:
   - "Direct to Watch" toggle,
   - connection status / last reading display.
 - `WatchStateModel` switches data source: direct readings when enabled and connected; companion (`WCSession`) data otherwise; `MainViewDataSourceView` shows the watch's own connection state (noise indicator, sensor age already exist in the model).
-- **Acceptance:** full enable/disable flow works from the watch alone; toggling off restores pure companion behavior.
+- **Acceptance:** full enable/disable flow works from the watch alone; toggling off restores pure companion behavior. *(Implemented: the toggle round-trips through the iPhone, so the iPhone must be reachable to change it — credentials never live on the Watch alone.)*
+
+**What was actually implemented:**
+
+- **iOS settings toggle** (the credentials' owner is the natural place to host the switch):
+  new toggle row `Apple Watch Direct Connection` plus an explanatory footer on the G7
+  transmitter's detail page (`BluetoothPeripheralDetailState.makeDexcomG7CommonRows`), shown only
+  for primary-mode sensors (coexistence mode has no credentials to share). `WatchManager` observes
+  `watchDirectToSensorEnabled` via KVO and pushes the fresh status immediately, and also handles a
+  `watchDirectToSensorToggle` message from the Watch.
+- **Watch page** (`SensorConnectionView.swift`, new tab in `RootView`): colored connection-phase
+  indicator, the opt-in toggle, sensor name, session start and last direct reading. The toggle
+  reflects only the configuration the iPhone last confirmed: it sends
+  `watchDirectToSensorChange` and snaps back until the fresh status arrives. `WatchStateModel`
+  republishes the manager's state (single observed object — nested ObservableObjects do not
+  propagate) through Combine sinks, and RootView's onAppear nudges the connection back to life with
+  `ensureConnected()` after the app was suspended.
+- **Localization:** all new strings use NSLocalizedString with English `value:` fallbacks (missing
+  translations degrade gracefully, matching the existing text-file conventions).
+- **Deviation from the original outline:** transmitter-ID / pairing-code entry stays on the iPhone
+  (Phase 2 decision — the Watch receives credentials instead of entering them); the Watch page
+  therefore shows status + toggle rather than credential fields.
+- **Verified:** both targets build; two full unit test runs confirmed the failing set is identical
+  to the master baseline (one transient CareLink wall-clock polling test failure appeared in a
+  single full-suite run and passed in isolation twice plus in the final full run — load flakiness,
+  not a regression).
 
 ### Phase 4 — Background execution, alerts, complications
 

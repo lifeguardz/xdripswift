@@ -85,6 +85,10 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
         // add observer to sync to the watch once the device status was updated
         UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.nightscoutDeviceStatusWasUpdated.rawValue, options: .new, context: nil)
 
+        // Direct-to-Watch: pushing the toggle to the Watch cannot wait for the next reading, the
+        // credentials must reach the Watch app as soon as the user flips the switch
+        UserDefaults.standard.addObserver(self, forKeyPath: UserDefaults.Key.watchDirectToSensorEnabled.rawValue, options: .new, context: nil)
+
         careLinkStatusObserver = CareLinkAccountState.shared.$snapshot
             .removeDuplicates()
             .dropFirst()
@@ -112,6 +116,11 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
                             self?.processWatchUpdate(updateTypes: [.status], forceComplicationUpdate: false)
                         }
                         UserDefaults.standard.nightscoutDeviceStatusWasUpdated = false
+                    }
+                case UserDefaults.Key.watchDirectToSensorEnabled:
+                    // send the fresh Direct-to-Watch configuration (or its absence) to the Watch
+                    DispatchQueue.main.async { [weak self] in
+                        self?.processWatchUpdate(updateTypes: [.status], forceComplicationUpdate: false)
                     }
                 default:
                     break
@@ -419,6 +428,7 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
 
     deinit {
         UserDefaults.standard.removeObserver(self, forKeyPath: UserDefaults.Key.nightscoutDeviceStatusWasUpdated.rawValue)
+        UserDefaults.standard.removeObserver(self, forKeyPath: UserDefaults.Key.watchDirectToSensorEnabled.rawValue)
     }
 }
 
@@ -451,6 +461,13 @@ extension WatchManager: WCSessionDelegate {
 
     // process any received messages from the watch app
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        // the Watch app requests flipping the Direct-to-Watch opt-in. The KVO observer above
+        // pushes the resulting configuration to the Watch with the next status update, closing the
+        // loop for the enable/disable flow driven from the Watch alone.
+        if let watchDirectToSensorToggle = message["watchDirectToSensorToggle"] as? Bool {
+            UserDefaults.standard.watchDirectToSensorEnabled = watchDirectToSensorToggle
+        }
+
         // check which type of update the Watch is requesting and call the correct sending function as needed
         if let requestWatchUpdate = message["requestWatchUpdate"] as? String {
             switch requestWatchUpdate {

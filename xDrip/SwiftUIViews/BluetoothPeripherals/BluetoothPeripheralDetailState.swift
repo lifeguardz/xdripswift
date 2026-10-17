@@ -2472,6 +2472,7 @@ private extension BluetoothPeripheralDetailState {
             BluetoothPeripheralDetailSection(
                 id: "dexcom-g7",
                 title: dexcomTitle,
+                footer: !dexcomG7.useOtherApp ? Texts_BluetoothPeripheralView.watchDirectToSensorFooter : nil,
                 rows: makeDexcomG7CommonRows(dexcomG7: dexcomG7)
             )
         ]
@@ -2508,6 +2509,19 @@ private extension BluetoothPeripheralDetailState {
                 id: "dexcom-g7-pairing-code",
                 title: Texts_BluetoothPeripheralView.sensorCode,
                 detail: dexcomG7.sensorCode ?? "-"
+            ))
+
+            // Direct-to-Watch (docs/watch-direct-to-sensor.md): the Watch app can only use primary
+            // credentials, so the offer exists only for primary-mode sensors. The value is a single
+            // app-level setting: the WatchManager pushes it to the Watch with the next status
+            // update, so the toggle takes effect without touching the live Bluetooth session.
+            rows.append(toggleRow(
+                id: "dexcom-g7-watch-direct-connection",
+                title: Texts_BluetoothPeripheralView.watchDirectToSensor,
+                isOn: UserDefaults.standard.watchDirectToSensorEnabled,
+                setValue: { isEnabled in
+                    UserDefaults.standard.watchDirectToSensorEnabled = isEnabled
+                }
             ))
         }
 

@@ -106,6 +106,12 @@ final class WatchSensorManager: NSObject, ObservableObject {
 
     @Published private(set) var connectionPhase: WatchSensorConnectionPhase = .inactive
 
+    /// Advertised name of the sensor the current configuration connects to, nil while not configured.
+    @Published private(set) var configuredTransmitterId: String?
+
+    /// Time stamp of the newest reading the direct connection delivered, nil before the first one.
+    @Published private(set) var latestReadingTimeStamp: Date?
+
     /// Sensor start date reconstructed from the current glucose and reported age, when the sensor
     /// reports one. Nil represents a stopped sensor session. Lets the Watch show a local sensor age
     /// even while the iPhone is unreachable.
@@ -133,6 +139,8 @@ final class WatchSensorManager: NSObject, ObservableObject {
 
         configuration = newConfiguration
         newConfiguration.persist()
+
+        configuredTransmitterId = newConfiguration.isStartable ? newConfiguration.transmitterId : nil
 
         guard !WatchDirectSensorConfiguration.hasSameLifecycle(oldConfiguration, newConfiguration) else { return }
 
@@ -204,6 +212,8 @@ final class WatchSensorManager: NSObject, ObservableObject {
         transmitter = nil
 
         connectionPhase = .inactive
+        configuredTransmitterId = nil
+        latestReadingTimeStamp = nil
         directSensorStartDate = nil
         sensorStatusText = nil
     }
@@ -296,6 +306,7 @@ extension WatchSensorManager: CGMTransmitterDelegate {
 
         publishOnMain {
             self.connectionPhase = .connected
+            self.latestReadingTimeStamp = readings[0].timeStamp
         }
 
         log.info("received \(readingCount) reading(s), newest at \(newestReadingTimeStamp, privacy: .public)")

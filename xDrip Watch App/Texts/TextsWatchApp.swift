@@ -24,4 +24,54 @@ class Texts_WatchApp {
         return NSLocalizedString("noSensorData", tableName: filename, bundle: Bundle.main, value: "No sensor data", comment: "watch app - text for no sensor data")
     }()
 
+    // MARK: - Direct Connection (Direct-to-Watch, docs/watch-direct-to-sensor.md)
+
+    static let directConnection: String = {
+        return NSLocalizedString("directConnection", tableName: filename, bundle: Bundle.main, value: "Direct Connection", comment: "watch app - title of the direct sensor connection page")
+    }()
+
+    static let directConnectionToggle: String = {
+        return NSLocalizedString("directConnectionToggle", tableName: filename, bundle: Bundle.main, value: "Direct to Sensor", comment: "watch app - toggle that asks the iPhone to enable/disable the direct sensor connection")
+    }()
+
+    static let directConnectionStatus: String = {
+        return NSLocalizedString("directConnectionStatus", tableName: filename, bundle: Bundle.main, value: "Status", comment: "watch app - label above the direct connection status")
+    }()
+
+    static let directConnectionOff: String = {
+        return NSLocalizedString("directConnectionOff", tableName: filename, bundle: Bundle.main, value: "Off", comment: "watch app - direct connection phase: not active")
+    }()
+
+    static let directConnectionBluetoothOff: String = {
+        return NSLocalizedString("directConnectionBluetoothOff", tableName: filename, bundle: Bundle.main, value: "Bluetooth Off", comment: "watch app - direct connection phase: bluetooth hardware is off")
+    }()
+
+    static let directConnectionConnecting: String = {
+        return NSLocalizedString("directConnectionConnecting", tableName: filename, bundle: Bundle.main, value: "Connecting", comment: "watch app - direct connection phase: scanning, connecting or authenticating")
+    }()
+
+    static let directConnectionConnected: String = {
+        return NSLocalizedString("directConnectionConnected", tableName: filename, bundle: Bundle.main, value: "Connected", comment: "watch app - direct connection phase: authenticated and receiving readings")
+    }()
+
+    static let directConnectionNotConfigured: String = {
+        return NSLocalizedString("directConnectionNotConfigured", tableName: filename, bundle: Bundle.main, value: "Not configured. Open the sensor settings on the iPhone and turn on Apple Watch Direct Connection.", comment: "watch app - direct connection has no configuration from the iPhone yet")
+    }()
+
+    static let directConnectionIPhoneUnreachable: String = {
+        return NSLocalizedString("directConnectionIPhoneUnreachable", tableName: filename, bundle: Bundle.main, value: "iPhone not reachable. The iPhone app is needed to change this.", comment: "watch app - the direct connection toggle needs a reachable iPhone")
+    }()
+
+    static let directConnectionSensor: String = {
+        return NSLocalizedString("directConnectionSensor", tableName: filename, bundle: Bundle.main, value: "Sensor", comment: "watch app - label for the directly connected sensor name")
+    }()
+
+    static let directConnectionSensorStart: String = {
+        return NSLocalizedString("directConnectionSensorStart", tableName: filename, bundle: Bundle.main, value: "Sensor Start", comment: "watch app - label for the directly connected sensor's session start")
+    }()
+
+    static let directConnectionLastReading: String = {
+        return NSLocalizedString("directConnectionLastReading", tableName: filename, bundle: Bundle.main, value: "Last direct reading", comment: "watch app - label for the time of the last directly collected reading")
+    }()
+
 }

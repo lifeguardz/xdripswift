@@ -134,6 +134,19 @@ final class WatchStateModel: NSObject, ObservableObject {
     /// Readings it collects are merged into the chart below and relayed to the iPhone.
     let directSensorManager = WatchSensorManager()
 
+    /// Latest Direct-to-Watch opt-in state received from the iPhone. The iPhone owns the setting;
+    /// the Watch requests changes through `requestDirectToSensorChange(enabled:)`.
+    @Published var directSensorConfigEnabled: Bool = false
+
+    // Mirrors of the direct sensor manager's published state. WatchStateModel is the single object
+    // the views observe, so nested ObservableObject changes must be republished here.
+    @Published private(set) var directConnectionPhase: WatchSensorConnectionPhase = .inactive
+    @Published private(set) var directSensorName: String?
+    @Published private(set) var latestDirectReadingTimeStamp: Date?
+    @Published private(set) var directSensorStartDate: Date?
+
+    private var directSensorCancellables = Set<AnyCancellable>()
+
     // we use the following to record when the user has manually requested a state update on each view so that we can trigger the animation on just this view
     // this is to prevent the UI animating "pending animations" when we switch view tabs
     @Published var updateBigNumberViewDate: Date = .now
@@ -152,6 +165,27 @@ final class WatchStateModel: NSObject, ObservableObject {
                 self?.applyDirectSensorReadings(readings, sensorAge: sensorAge)
             }
         }
+
+        // republish the manager's state so views observing only this model stay reactive
+        directSensorManager.$connectionPhase
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] phase in self?.directConnectionPhase = phase }
+            .store(in: &directSensorCancellables)
+
+        directSensorManager.$configuredTransmitterId
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] name in self?.directSensorName = name }
+            .store(in: &directSensorCancellables)
+
+        directSensorManager.$latestReadingTimeStamp
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] timeStamp in self?.latestDirectReadingTimeStamp = timeStamp }
+            .store(in: &directSensorCancellables)
+
+        directSensorManager.$directSensorStartDate
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] startDate in self?.directSensorStartDate = startDate }
+            .store(in: &directSensorCancellables)
 
         // resume a persisted direct connection before the iPhone answers the first status request
         directSensorManager.restorePersistedConfiguration()
@@ -491,6 +525,29 @@ final class WatchStateModel: NSObject, ObservableObject {
 
     // MARK: - helper functions not related with the class structure
 
+    /// Cheap connectivity nudge for when the Watch app becomes active again: reconnects when
+    /// Core Bluetooth gave up while the app was suspended. No-op while the connection is healthy.
+    func ensureDirectSensorConnection() {
+        directSensorManager.ensureConnected()
+    }
+
+    /// Asks the iPhone to enable or disable the Direct-to-Watch connection.
+    ///
+    /// The iPhone owns the setting and the sensor credentials, so this only forwards the request:
+    /// the fresh configuration flows back with the next status update and applies automatically.
+    /// Returns false when the iPhone app is not reachable right now, in which case nothing was sent
+    /// and the toggle must snap back to the current state.
+    @discardableResult
+    func requestDirectToSensorChange(enabled: Bool) -> Bool {
+        guard session.activationState == .activated, session.isReachable else { return false }
+
+        session.sendMessage(["watchDirectToSensorToggle": enabled], replyHandler: nil) { [log] error in
+            log.error("Error requesting Direct-to-Watch change: \(error.localizedDescription, privacy: .public)")
+        }
+
+        return true
+    }
+
     /// request a state update from the iOS companion app
     func requestWatchStateUpdate() {
         guard session.activationState == .activated else {
@@ -827,7 +884,7 @@ final class WatchStateModel: NSObject, ObservableObject {
 
         // the direct connection knows the session start locally, so sensor age stays fresh even
         // while the iPhone is unreachable
-        if let directSensorStartDate = directSensorManager.directSensorStartDate {
+        if let directSensorStartDate {
             sensorAgeInMinutes = Date().timeIntervalSince(directSensorStartDate) / 60
         }
     }
@@ -882,17 +939,21 @@ final class WatchStateModel: NSObject, ObservableObject {
         // G7-family sensor with a valid applicator code is active. A fresh status without the key
         // means the iPhone no longer offers a direct connection, so any running one is stopped.
         if let directSensorConfigDictionary = dictionary["directSensorConfig"] as? [String: Any] {
-            directSensorManager.applyConfiguration(WatchDirectSensorConfiguration(
+            let directSensorConfiguration = WatchDirectSensorConfiguration(
                 enabled: directSensorConfigDictionary["enabled"] as? Bool ?? false,
                 transmitterId: directSensorConfigDictionary["transmitterId"] as? String ?? "",
                 pairingCode: directSensorConfigDictionary["pairingCode"] as? String ?? "",
                 useOtherApp: directSensorConfigDictionary["useOtherApp"] as? Bool ?? false,
                 bluetoothSlotRawValue: directSensorConfigDictionary["bluetoothSlotRawValue"] as? Int ?? Int(DexcomG7BluetoothSlot.smartWatch.rawValue),
                 sensorSessionLengthAsDouble: directSensorConfigDictionary["sensorSessionLengthAsDouble"] as? Double
-            ))
+            )
+
+            directSensorConfigEnabled = directSensorConfiguration.enabled
+            directSensorManager.applyConfiguration(directSensorConfiguration)
         } else {
             // An inert disabled configuration: enabled=false stops any running connection and the
             // remaining fields are irrelevant while disabled.
+            directSensorConfigEnabled = false
             directSensorManager.applyConfiguration(WatchDirectSensorConfiguration(
                 enabled: false,
                 transmitterId: "",

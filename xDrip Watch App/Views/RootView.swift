@@ -31,6 +31,10 @@ struct RootView: View {
             // large number page
             BigNumberView()
                 .tag(WatchAppPage.bigNumber.rawValue)
+
+            // direct sensor connection status and opt-in (Direct-to-Watch)
+            SensorConnectionView()
+                .tag(WatchAppPage.sensorConnection.rawValue)
         }
         .modifier(RootViewTabViewStyleModifier())
         .environmentObject(watchState)
@@ -39,6 +43,10 @@ struct RootView: View {
             if WatchAppPage(rawValue: selectedPage) == nil {
                 selectedPage = WatchAppPage.main.rawValue
             }
+
+            // nudge the direct sensor connection back to life if it lost the sensor while the
+            // Watch app was suspended (Direct-to-Watch, docs/watch-direct-to-sensor.md)
+            watchState.ensureDirectSensorConnection()
         }
     }
 }
@@ -47,6 +55,7 @@ private enum WatchAppPage: Int {
     case main = 0
     case agp = 1
     case bigNumber = 2
+    case sensorConnection = 3
 }
 
 #if os(watchOS)
