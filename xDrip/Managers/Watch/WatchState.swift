@@ -44,6 +44,38 @@ struct WatchStatus: WatchPayload {
 
     var aidStatus: AIDStatus?
     var therapyMetrics: TherapyMetricsSnapshot? = nil
+
+    /// Direct-to-Watch sensor configuration (docs/watch-direct-to-sensor.md). Sent only while the
+    /// active peripheral is a G7-family sensor with a valid applicator code and the user enabled
+    /// the direct connection. The Watch connects as primary client on the sensor's dedicated
+    /// smartwatch channel - never on the channel this app uses itself. Absent means the iPhone no
+    /// longer offers a direct connection and the Watch must stop any running one.
+    var directSensorConfig: WatchDirectSensorConfig? = nil
+}
+
+/// Everything the Watch needs to authenticate as a primary client on the G7 smartwatch channel.
+///
+/// The four-digit applicator code is the sensor's pairing secret. It travels only over the paired,
+/// encrypted WatchConnectivity transport and is never persisted on the iPhone beyond the active
+/// sensor's own Core Data record it was read from.
+struct WatchDirectSensorConfig: WatchPayload {
+    /// Opt-in master switch; companion-only behaviour stays the default.
+    var enabled: Bool
+
+    /// Advertised sensor name / transmitter ID, e.g. "DXCM1ABC23".
+    var transmitterId: String
+
+    /// Four-digit applicator code, required for primary ownership of the smartwatch channel.
+    var pairingCode: String
+
+    /// Watch v1 always authenticates as primary client; coexistence is a phone-only concept.
+    var useOtherApp: Bool = false
+
+    /// `DexcomG7BluetoothSlot` raw value. Always the smartwatch slot.
+    var bluetoothSlotRawValue: Int = Int(DexcomG7BluetoothSlot.smartWatch.rawValue)
+
+    /// Supported total session length in seconds, when known.
+    var sensorSessionLengthAsDouble: Double? = nil
 }
 
 /// current BG chart data used to manage watch views

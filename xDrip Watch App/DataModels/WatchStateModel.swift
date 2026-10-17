@@ -130,6 +130,10 @@ final class WatchStateModel: NSObject, ObservableObject {
     var resolvedTherapyMetrics: TherapyMetricsSnapshot { therapyMetrics ?? .external(aidStatus) }
     @Published var aidStatus: AIDStatus?
 
+    /// Owns the direct G7 sensor connection (Direct-to-Watch, docs/watch-direct-to-sensor.md).
+    /// Readings it collects are merged into the chart below and relayed to the iPhone.
+    let directSensorManager = WatchSensorManager()
+
     // we use the following to record when the user has manually requested a state update on each view so that we can trigger the animation on just this view
     // this is to prevent the UI animating "pending animations" when we switch view tabs
     @Published var updateBigNumberViewDate: Date = .now
@@ -141,6 +145,16 @@ final class WatchStateModel: NSObject, ObservableObject {
 
         session.delegate = self
         session.activate()
+
+        // readings collected by the direct sensor connection arrive on a Core Bluetooth queue
+        directSensorManager.onReadings = { [weak self] readings, sensorAge in
+            DispatchQueue.main.async {
+                self?.applyDirectSensorReadings(readings, sensorAge: sensorAge)
+            }
+        }
+
+        // resume a persisted direct connection before the iPhone answers the first status request
+        directSensorManager.restorePersistedConfiguration()
     }
 
     // MARK: - Functions to provide context data to populate the views
@@ -655,6 +669,10 @@ final class WatchStateModel: NSObject, ObservableObject {
 
             bgReadingValues = dictionary["bgReadingValues"] as? [Double] ?? [100]
 
+            // the phone payload replaces the chart wholesale: re-merge readings the direct sensor
+            // connection collected after the payload was generated so they are never lost
+            remergeDirectCollectedReadings()
+
             slopeOrdinal = dictionary["slopeOrdinal"] as? Int ?? 0
             deltaValueInUserUnit = dictionary["deltaValueInUserUnit"] as? Double ?? 0
             updatedDate = Date(timeIntervalSince1970: dictionary["generatedAt"] as? Double ?? Date().timeIntervalSince1970)
@@ -674,6 +692,161 @@ final class WatchStateModel: NSObject, ObservableObject {
         }
 
         return false
+    }
+
+    // MARK: - Direct-to-Watch sensor reading handling
+
+    /// Duplicate window in seconds. Mirrors the 2.5-minute window of the iPhone ingestion path so
+    /// a reading collected by both devices is never charted or stored twice.
+    private static let directReadingDuplicateWindow = 2.5 * 60.0
+
+    /// Chart capacity: 24 hours of 5-minute readings plus headroom for backfill batches.
+    private static let maximumMergedReadings = 24 * 60 / 5 + 10
+
+    /// Locally collected readings, newest first. The phone payload replaces the chart arrays
+    /// wholesale, so these are re-merged afterwards: readings newer than the phone's snapshot must
+    /// never disappear from the chart just because the iPhone replied.
+    private var directCollectedReadings: [(valueMgDl: Double, timeStamp: Date)] = []
+
+    /// Merges readings collected by the direct sensor connection into the chart, refreshes the
+    /// derived display state, updates the complication and relays them to the iPhone.
+    private func applyDirectSensorReadings(_ readings: [(valueMgDl: Double, timeStamp: Date, slopeOrdinal: Int?)], sensorAge: TimeInterval?) {
+        guard readings.count > 0 else { return }
+
+        for reading in readings {
+            mergeReadingIntoChart(value: reading.valueMgDl, date: reading.timeStamp)
+            rememberDirectCollectedReading(value: reading.valueMgDl, date: reading.timeStamp)
+        }
+
+        refreshDerivedStateFromChart(newestSlopeOrdinal: readings[0].slopeOrdinal)
+        updateComplicationData()
+        relayCollectedReadingsToPhone(readings)
+    }
+
+    private func mergeReadingIntoChart(value: Double, date: Date) {
+        let duplicateWindow = Self.directReadingDuplicateWindow
+
+        // already charted (either by an earlier merge or by a phone payload that included it)
+        guard !bgReadingDates.contains(where: { abs($0.timeIntervalSince(date)) <= duplicateWindow }) else { return }
+
+        // the arrays are sorted newest-first: find the insertion index
+        var insertionIndex = 0
+        while insertionIndex < bgReadingDates.count && bgReadingDates[insertionIndex] > date {
+            insertionIndex += 1
+        }
+
+        bgReadingValues.insert(value, at: insertionIndex)
+        bgReadingDates.insert(date, at: insertionIndex)
+
+        trimChartToCapacity()
+    }
+
+    private func rememberDirectCollectedReading(value: Double, date: Date) {
+        guard !directCollectedReadings.contains(where: { abs($0.timeStamp.timeIntervalSince(date)) <= Self.directReadingDuplicateWindow }) else { return }
+
+        directCollectedReadings.insert((valueMgDl: value, timeStamp: date), at: 0)
+
+        if directCollectedReadings.count > Self.maximumMergedReadings {
+            directCollectedReadings.removeLast(directCollectedReadings.count - Self.maximumMergedReadings)
+        }
+    }
+
+    /// Re-merges locally collected readings after the phone replaced the chart arrays wholesale.
+    private func remergeDirectCollectedReadings() {
+        for reading in directCollectedReadings {
+            mergeReadingIntoChart(value: reading.valueMgDl, date: reading.timeStamp)
+        }
+    }
+
+    private func trimChartToCapacity() {
+        guard bgReadingValues.count > Self.maximumMergedReadings else { return }
+
+        let excess = bgReadingValues.count - Self.maximumMergedReadings
+        bgReadingValues.removeLast(excess)
+        bgReadingDates.removeLast(excess)
+    }
+
+    /// Recomputes trend, delta and the "last reading" presentation from the merged chart.
+    ///
+    /// G7-family readings do not carry a slope ordinal, so it is derived from the two newest chart
+    /// readings using the same per-minute thresholds as `BgReading.slopeOrdinal()` on the iPhone.
+    private func refreshDerivedStateFromChart(newestSlopeOrdinal: Int?) {
+        bgReadingDatesAsDouble = bgReadingDates.map { $0.timeIntervalSince1970 }
+
+        if let newestSlopeOrdinal {
+            slopeOrdinal = newestSlopeOrdinal
+        } else if bgReadingValues.count > 1,
+                  bgReadingDates.count > 1 {
+            let secondsBetweenNewestReadings = bgReadingDates[0].timeIntervalSince(bgReadingDates[1])
+
+            if secondsBetweenNewestReadings > 0 {
+                let slopeByMinute = (bgReadingValues[0] - bgReadingValues[1]) / (secondsBetweenNewestReadings / 60.0)
+
+                if slopeByMinute <= -3.5 {
+                    slopeOrdinal = 7
+                } else if slopeByMinute <= -2 {
+                    slopeOrdinal = 6
+                } else if slopeByMinute <= -1 {
+                    slopeOrdinal = 5
+                } else if slopeByMinute <= 1 {
+                    slopeOrdinal = 4
+                } else if slopeByMinute <= 2 {
+                    slopeOrdinal = 3
+                } else if slopeByMinute <= 3.5 {
+                    slopeOrdinal = 2
+                } else {
+                    slopeOrdinal = 1
+                }
+            }
+        }
+
+        if bgReadingValues.count > 1 {
+            var previousValueInUserUnit = bgReadingValues[1].mgDlToMmol(mgDl: isMgDl)
+            var actualValueInUserUnit = bgReadingValues[0].mgDlToMmol(mgDl: isMgDl)
+
+            // match the iPhone delta precision: mmol/L values are rounded to one decimal place
+            if !isMgDl {
+                previousValueInUserUnit = (previousValueInUserUnit * 10).rounded() / 10
+                actualValueInUserUnit = (actualValueInUserUnit * 10).rounded() / 10
+            }
+
+            deltaValueInUserUnit = actualValueInUserUnit - previousValueInUserUnit
+        }
+
+        updatedDate = Date()
+
+        if let bgReadingDate = bgReadingDate() {
+            lastUpdatedTextString = Texts_WatchApp.lastReading + " "
+            lastUpdatedTimeString = bgReadingDate.formatted(date: .omitted, time: .shortened)
+            lastUpdatedTimeAgoString = bgReadingDate.daysAndHoursAgo(appendAgo: true)
+        } else {
+            lastUpdatedTextString = Texts_WatchApp.noSensorData
+            lastUpdatedTimeString = ""
+            lastUpdatedTimeAgoString = ""
+        }
+
+        // the direct connection knows the session start locally, so sensor age stays fresh even
+        // while the iPhone is unreachable
+        if let directSensorStartDate = directSensorManager.directSensorStartDate {
+            sensorAgeInMinutes = Date().timeIntervalSince(directSensorStartDate) / 60
+        }
+    }
+
+    /// Queues readings for the iPhone. `transferUserInfo` is delivered even when the iPhone app is
+    /// unreachable or in the background: watchOS queues the payload and delivers later, which is
+    /// exactly what airplane-mode collection needs. The iPhone dedupes by timestamp on arrival.
+    private func relayCollectedReadingsToPhone(_ readings: [(valueMgDl: Double, timeStamp: Date, slopeOrdinal: Int?)]) {
+        guard session.activationState == .activated else { return }
+
+        let payload: [String: Any] = [
+            "watchCollectedReadings": [
+                "bgReadingValues": readings.map { $0.valueMgDl },
+                "bgReadingDatesAsDouble": readings.map { $0.timeStamp.timeIntervalSince1970 },
+                "generatedAt": Date().timeIntervalSince1970
+            ]
+        ]
+
+        session.transferUserInfo(payload)
     }
 
     private func processStatusFromDictionary(dictionary: [String: Any]) -> Bool {
@@ -704,6 +877,28 @@ final class WatchStateModel: NSObject, ObservableObject {
         timeStampOfLastHeartBeat = Date(timeIntervalSince1970: dictionary["timeStampOfLastHeartBeat"] as? Double ?? 0)
         secondsUntilHeartBeatDisconnectWarning = dictionary["secondsUntilHeartBeatDisconnectWarning"] as? Int ?? 0
         keepAliveIsDisabled = dictionary["keepAliveIsDisabled"] as? Bool ?? false
+
+        // Direct-to-Watch configuration: the iPhone pushes it with every status update while a
+        // G7-family sensor with a valid applicator code is active. A fresh status without the key
+        // means the iPhone no longer offers a direct connection, so any running one is stopped.
+        if let directSensorConfigDictionary = dictionary["directSensorConfig"] as? [String: Any] {
+            directSensorManager.applyConfiguration(WatchDirectSensorConfiguration(
+                enabled: directSensorConfigDictionary["enabled"] as? Bool ?? false,
+                transmitterId: directSensorConfigDictionary["transmitterId"] as? String ?? "",
+                pairingCode: directSensorConfigDictionary["pairingCode"] as? String ?? "",
+                useOtherApp: directSensorConfigDictionary["useOtherApp"] as? Bool ?? false,
+                bluetoothSlotRawValue: directSensorConfigDictionary["bluetoothSlotRawValue"] as? Int ?? Int(DexcomG7BluetoothSlot.smartWatch.rawValue),
+                sensorSessionLengthAsDouble: directSensorConfigDictionary["sensorSessionLengthAsDouble"] as? Double
+            ))
+        } else {
+            // An inert disabled configuration: enabled=false stops any running connection and the
+            // remaining fields are irrelevant while disabled.
+            directSensorManager.applyConfiguration(WatchDirectSensorConfiguration(
+                enabled: false,
+                transmitterId: "",
+                pairingCode: ""
+            ))
+        }
 
         therapyMetrics = (dictionary["therapyMetrics"] as? [String: Any]).flatMap { try? JSONSerialization.data(withJSONObject: $0) }.flatMap { try? JSONDecoder().decode(TherapyMetricsSnapshot.self, from: $0) }
         if let aidStatusDictionary = dictionary["aidStatus"] as? [String: Any],

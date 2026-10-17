@@ -972,6 +972,20 @@ import AppIntents
         
         // initialize watchManager
         watchManager = WatchManager(coreDataManager: coreDataManager, nightscoutSyncManager: nightscoutSyncManager!)
+
+        // Direct-to-Watch (docs/watch-direct-to-sensor.md): readings collected by the Watch app's
+        // own G7 connection enter the same ingestion path as phone-collected readings
+        watchManager?.onWatchCollectedReadings = { [weak self] readings in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                var glucoseData = readings.map { reading in
+                    GlucoseData(timeStamp: reading.timeStamp, glucoseLevelRaw: reading.glucoseLevelRaw)
+                }
+
+                self.ingestWatchCollectedGlucoseData(&glucoseData)
+            }
+        }
         
     }
 
@@ -1076,6 +1090,25 @@ import AppIntents
     /// - parameters:
     ///     - glucoseData : array with new readings
     ///     - sensorAge : should be present only if it's the first reading(s) being processed for a specific sensor and is needed if it's a transmitterType that returns true to the function canDetectNewSensor
+    /// Ingests glucose readings collected by the Watch app's direct G7 sensor connection
+    /// (docs/watch-direct-to-sensor.md).
+    ///
+    /// They enter the same calibration-aware ingestion path as phone-collected readings, so the
+    /// 2.5-minute duplicate window there resolves the overlap while both devices collect the same
+    /// sensor simultaneously, and a backlog collected while the iPhone was away is stored
+    /// gap-free. The Watch never calibrates in v1: its readings are the sensor's native values and
+    /// are treated exactly like readings the phone's transmitter object produced.
+    private func ingestWatchCollectedGlucoseData(_ glucoseData: inout [GlucoseData]) {
+        guard bluetoothPeripheralManager?.getCGMTransmitter() != nil else {
+            trace("in ingestWatchCollectedGlucoseData, no active transmitter configured - ignoring watch readings", log: log, category: ConstantsLog.categoryRootView, type: .info)
+            return
+        }
+
+        trace("in ingestWatchCollectedGlucoseData, ingesting %{public}d reading(s) collected by the Watch", log: log, category: ConstantsLog.categoryRootView, type: .info, glucoseData.count)
+
+        processNewGlucoseData(glucoseData: &glucoseData, sensorAge: nil)
+    }
+
     private func processNewGlucoseData(glucoseData: inout [GlucoseData], sensorAge: TimeInterval?) {
         // unwrap calibrationsAccessor and coreDataManager and cgmTransmitter
         guard let calibrationsAccessor = calibrationsAccessor, let coreDataManager = coreDataManager, let cgmTransmitter = bluetoothPeripheralManager?.getCGMTransmitter() else {

@@ -518,6 +518,11 @@ extension UserDefaults {
         /// timestamp lastest reading shared with Loop/OS-AID
         case timeStampLatestLoopSharedBgReading = "timeStampLatestLoopSharedBgReading"
 
+        // Watch app
+        /// opt-in switch for the Watch app's direct G7 sensor connection (Direct-to-Watch,
+        /// docs/watch-direct-to-sensor.md). Default false: companion-only behaviour.
+        case watchDirectToSensorEnabled = "watchDirectToSensorEnabled"
+
         // Trace
         /// should debug level logs be added in trace file or not, and also in NSLog
         case addDebugLevelLogsInTraceFileAndNSLog = "addDebugLevelLogsInTraceFileAndNSLog"
@@ -2473,6 +2478,19 @@ extension UserDefaults {
         }
         set {
             set(newValue, forKey: Key.forceComplicationUpdateInMinutes.rawValue)
+        }
+    }
+
+    /// opt-in switch for the Watch app's direct G7 sensor connection (Direct-to-Watch,
+    /// docs/watch-direct-to-sensor.md). When true, the watch status payload carries the active
+    /// sensor's smartwatch-channel credentials so the Watch can connect on its own. Default false:
+    /// the Watch app stays companion-only.
+    var watchDirectToSensorEnabled: Bool {
+        get {
+            return bool(forKey: Key.watchDirectToSensorEnabled.rawValue)
+        }
+        set {
+            set(newValue, forKey: Key.watchDirectToSensorEnabled.rawValue)
         }
     }
 

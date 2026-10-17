@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** in progress — Phase 0 complete, Phase 1 complete (shared G7 core compiles for watchOS; iOS build unchanged; unit tests show zero regressions vs. baseline)
+- **Status:** in progress — Phases 0–2 complete (shared G7 core compiles for watchOS; watch-side sensor manager, config sync, reading relay and phone-side ingestion implemented; both targets build; unit tests show zero regressions vs. baseline). Pending: Phase 3 (settings UI + mode switching) and real-sensor hardware validation.
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -176,7 +176,34 @@ Add to the `xDrip Watch App` target's Sources build phase:
   - insert into the existing ingestion path used by transmitters (timestamp dedupe handles the both-connected overlap),
   - keep owning Nightscout/Share upload, HealthKit, alerting.
 - Config sync phone → watch: extend `currentStatus()` payload with transmitter type/ID, pairing code, sensor session start date (needed by the watch to authenticate and timestamp coexistence-style packets).
-- **Acceptance:** Watch, with Direct enabled, authenticates to a real G7 and displays live readings with the iPhone in airplane mode; iPhone later receives the readings collected while it was away, deduped.
+- **Acceptance:** Watch, with Direct enabled, authenticates to a real G7 and displays live readings with the iPhone in airplane mode; iPhone later receives the readings collected while it was away, deduped. *(Hardware validation pending — everything up to the real sensor is implemented and both targets build.)*
+
+**What was actually implemented:**
+
+- `xDrip Watch App/DataModels/WatchSensorManager.swift` (new): `WatchSensorManager` owns one
+  `CGMG7Transmitter` constructed as **primary client on `DexcomG7BluetoothSlot.smartWatch`** — the
+  phone's channel is never touched. `WatchDirectSensorConfiguration` (Codable) carries
+  enabled/transmitterId/pairingCode/slot/session length, is persisted locally and restored at app
+  launch. The manager translates the three delegate protocols into a minimal published surface
+  (`connectionPhase`, `directSensorStartDate`, `sensorStatusText`) and forwards readings through
+  `onReadings`. Reconnection is the transmitter's own Core Bluetooth policy; `ensureConnected()` is
+  a cheap nudge for later use by the UI.
+- `WatchStateModel`: owns the manager; `processStatusFromDictionary` applies the `directSensorConfig`
+  key (its *absence* in a fresh status stops a running direct connection — the iPhone is the source
+  of truth). Readings merge into the chart with the same **2.5-minute duplicate window** the iPhone
+  uses, a local re-merge keeps readings newer than a phone snapshot, slope ordinal/delta/UI strings
+  are recomputed locally (mirroring `BgReading.slopeOrdinal()` thresholds), the complication refresh
+  reuses `updateComplicationData()`, and every batch is relayed via `session.transferUserInfo`
+  (`watchCollectedReadings` payload) — watchOS queues it while the iPhone is unreachable.
+- Phone `WatchManager`: `currentStatus()` attaches `WatchDirectSensorConfig` while the active
+  peripheral is a G7-family sensor **with a valid applicator code** and the new
+  `UserDefaults.standard.watchDirectToSensorEnabled` opt-in is on (default **false** —
+  companion-only stays the default). Incoming `watchCollectedReadings` userInfo payloads are sorted
+  newest-first and forwarded through the new `onWatchCollectedReadings` closure.
+- Phone `RootApplicationCoordinator`: `ingestWatchCollectedGlucoseData` feeds the readings into the
+  existing `processNewGlucoseData` path (sensorAge nil) — same calibration pipeline, alerts, uploads
+  and dedupe as phone-collected readings.
+- The four-digit applicator code crosses only the paired, encrypted WatchConnectivity transport.
 
 ### Phase 3 — Watch settings UI + mode switching
 

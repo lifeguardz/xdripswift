@@ -57,6 +57,12 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
     /// for logging
     private var log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryWatchManager)
 
+    /// Ingests readings collected by the Watch app's direct G7 sensor connection
+    /// (docs/watch-direct-to-sensor.md). Set by the application coordinator; the readings enter the
+    /// same calibration-aware ingestion path as phone-collected readings, where the timestamp
+    /// dedupe window resolves the overlap while both devices collect simultaneously.
+    var onWatchCollectedReadings: ((_ readings: [(glucoseLevelRaw: Double, timeStamp: Date)]) -> Void)?
+
     // MARK: - intializer
 
     init(coreDataManager: CoreDataManager, nightscoutSyncManager: NightscoutSyncManager, session: WCSession = .default) {
@@ -228,6 +234,29 @@ final class WatchManager: NSObject, ObservableObject, @unchecked Sendable {
             ? CareLinkAccountState.shared.snapshot.status.rawValue
             : nil
         status.keepAliveIsDisabled = !UserDefaults.standard.isMaster && UserDefaults.standard.followerBackgroundKeepAliveType == .disabled
+
+        // Direct-to-Watch (docs/watch-direct-to-sensor.md): while a G7-family sensor with a valid
+        // applicator code is active and the user opted in, send the credentials the Watch needs to
+        // authenticate as primary client on the sensor's dedicated smartwatch channel. The channel
+        // this app uses itself is never handed over.
+        if UserDefaults.standard.isMaster, UserDefaults.standard.watchDirectToSensorEnabled {
+            coreDataManager.mainManagedObjectContext.performAndWait {
+                guard let dexcomG7Peripheral = BLEPeripheralAccessor(coreDataManager: coreDataManager)
+                    .getBLEPeripherals()
+                    .first(where: { $0.shouldconnect && $0.dexcomG7 != nil }),
+                    let dexcomG7 = dexcomG7Peripheral.dexcomG7,
+                    let sensorCode = dexcomG7.sensorCode else { return }
+
+                status.directSensorConfig = WatchDirectSensorConfig(
+                    enabled: true,
+                    transmitterId: dexcomG7Peripheral.transmitterId ?? "",
+                    pairingCode: sensorCode,
+                    useOtherApp: false,
+                    bluetoothSlotRawValue: Int(DexcomG7BluetoothSlot.smartWatch.rawValue),
+                    sensorSessionLengthAsDouble: dexcomG7.sensorSessionLength?.doubleValue
+                )
+            }
+        }
 
         if let sensorStartDate = UserDefaults.standard.activeSensorStartDate {
             let minutes = Calendar.current.dateComponents([.minute], from: sensorStartDate, to: .now).minute ?? 0
@@ -456,7 +485,31 @@ extension WatchManager: WCSessionDelegate {
         }
     }
 
-    func session(_: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {}
+    /// Readings collected by the Watch app's direct sensor connection arrive as queued userInfo
+    /// payloads: watchOS delivers them even when the iPhone app was unreachable while they were
+    /// collected (the airplane-mode scenario of Direct-to-Watch).
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
+        guard let readingsDictionary = userInfo["watchCollectedReadings"] as? [String: Any] else { return }
+
+        let values = readingsDictionary["bgReadingValues"] as? [Double] ?? []
+        let dates = (readingsDictionary["bgReadingDatesAsDouble"] as? [Double] ?? []).map { Date(timeIntervalSince1970: $0) }
+
+        guard values.count == dates.count, values.count > 0 else {
+            trace("received malformed watchCollectedReadings payload", log: log, category: ConstantsLog.categoryWatchManager, type: .error)
+            return
+        }
+
+        // newest first, matching the CGM transmitter delegate contract the ingestion path expects
+        let readings = zip(values, dates)
+            .map { (glucoseLevelRaw: $0.0, timeStamp: $0.1) }
+            .sorted { $0.timeStamp > $1.timeStamp }
+
+        trace("received %{public}d reading(s) collected by the Watch", log: log, category: ConstantsLog.categoryWatchManager, type: .info, readings.count)
+
+        DispatchQueue.main.async { [weak self] in
+            self?.onWatchCollectedReadings?(readings)
+        }
+    }
 
     func session(_: WCSession, didReceiveMessageData _: Data) {}
 
