@@ -1,5 +1,4 @@
 import CoreBluetooth
-import CoreData
 import Foundation
 import os
 
@@ -224,39 +223,16 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
     private var batteryStatusRequestSent = false
     private var currentBatterySkipWasTraced = false
 
-    /// Snapshot the Core Data object before it crosses into the Bluetooth lifecycle. Only the
-    /// managed-object context is retained so the final transmitter result can be written safely.
-    private struct PendingTransmitterCalibration {
-        /// Stable identifier used to re-fetch the original calibration after a transmitter result.
-        let id: String
-
-        /// User-entered glucose value expressed in mg/dL.
-        let bg: Double
-
-        /// Wall-clock entry time later converted into the relative transmitter clock.
-        let timeStamp: Date
-
-        /// Context used only to perform the final identifier-based Core Data update.
-        let managedObjectContext: NSManagedObjectContext?
-
-        /// Snapshot of whether an earlier path already sent this treatment to a transmitter.
-        let sentToTransmitter: Bool
-
-        init(calibration: Calibration) {
-            id = calibration.id
-            bg = calibration.bg
-            timeStamp = calibration.timeStamp
-            managedObjectContext = calibration.managedObjectContext
-            sentToTransmitter = calibration.sentToTransmitter
-        }
-    }
-
+    /// Calibration commands cross into the Bluetooth lifecycle as detached
+    /// `CGMTransmitterCalibrationSnapshot` values. The transmitter reports results back through
+    /// `CGMTransmitterDelegate.transmitterCalibrationOutcomeReceived`, identified by the snapshot's
+    /// stable `id`, so this class never touches the calibration store that produced the snapshot.
     /// Calibration waiting to be written or waiting for its immediate `0x34` response. A local
     /// Bluetooth write success does not remove it because that is not transmitter acceptance.
-    private var calibrationToSendToTransmitter: PendingTransmitterCalibration?
+    private var calibrationToSendToTransmitter: CGMTransmitterCalibrationSnapshot?
 
     /// Calibration accepted for processing and waiting for the authoritative `0x32` bounds record.
-    private var calibrationAwaitingBounds: PendingTransmitterCalibration?
+    private var calibrationAwaitingBounds: CGMTransmitterCalibrationSnapshot?
 
     /// Relative command time used with glucose to reject a stale bounds record.
     private var lastCalibrationCommandTransmitterTime: UInt32?
@@ -347,7 +323,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         firmwareBuildVersion: UInt32?,
         firmwareVersionCode: UInt32?,
         batteryLastReadDate: Date?,
-        calibrationToSendToTransmitter: Calibration?,
+        calibrationToSendToTransmitter: CGMTransmitterCalibrationSnapshot?,
         bluetoothTransmitterDelegate: BluetoothTransmitterDelegate,
         cGMG7TransmitterDelegate: CGMG7TransmitterDelegate,
         cGMTransmitterDelegate: CGMTransmitterDelegate
@@ -388,7 +364,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         if let calibrationToSendToTransmitter,
            !calibrationToSendToTransmitter.sentToTransmitter
         {
-            self.calibrationToSendToTransmitter = PendingTransmitterCalibration(calibration: calibrationToSendToTransmitter)
+            self.calibrationToSendToTransmitter = calibrationToSendToTransmitter
             calibrationStatusTracker.transition(to: .queued)
         }
 
@@ -895,17 +871,15 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         return calibrationStatusTracker.status
     }
 
-    func calibrate(calibration: Calibration) {
-        // Detach the values needed by the BLE command before validating them. The original managed
-        // object is looked up again by identifier only when a transmitter result must be saved.
-        let pendingCalibration = PendingTransmitterCalibration(calibration: calibration)
-
+    func calibrate(calibration: CGMTransmitterCalibrationSnapshot) {
+        // The snapshot arrives already detached from the calibration store. Queue it on the central
+        // queue; a transmitter result is reported back through the delegate, identified by id.
         runOnCentralQueue { [weak self] in
-            self?.queueCalibrationOnCentral(pendingCalibration)
+            self?.queueCalibrationOnCentral(calibration)
         }
     }
 
-    private func queueCalibrationOnCentral(_ pendingCalibration: PendingTransmitterCalibration) {
+    private func queueCalibrationOnCentral(_ pendingCalibration: CGMTransmitterCalibrationSnapshot) {
         assertOnCentral()
 
         // Replace any older unsent command with the calibration the user has just submitted. An
@@ -1973,7 +1947,7 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         }
     }
 
-    private func calibrationIsValid(_ calibration: PendingTransmitterCalibration) -> Bool {
+    private func calibrationIsValid(_ calibration: CGMTransmitterCalibrationSnapshot) -> Bool {
         // Match the established Dexcom validation boundary. Only an unsent, recent treatment in
         // the supported 40 to 400 mg/dL range can be converted into a transmitter command.
         guard !calibration.sentToTransmitter else { return false }
@@ -1982,28 +1956,18 @@ class CGMG7Transmitter: BluetoothTransmitter, CGMTransmitter, DexcomG7AuthSessio
         return calibration.bg >= 40 && calibration.bg <= 400
     }
 
+    /// Reports the outcome of one calibration round-trip to the delegate. The delegate owns the
+    /// calibration store and re-applies the flags by identifier; this class never persists anything.
     private func updateCalibrationTransmitterStatus(
-        calibration: PendingTransmitterCalibration,
+        calibration: CGMTransmitterCalibrationSnapshot,
         sentToTransmitter: Bool,
         acceptedByTransmitter: Bool
     ) {
-        guard let managedObjectContext = calibration.managedObjectContext else { return }
-
-        // Re-fetch by the detached identifier on the managed object's own queue. This avoids
-        // carrying an NSManagedObject through asynchronous Bluetooth callbacks.
-        managedObjectContext.perform {
-            let request: NSFetchRequest<Calibration> = Calibration.fetchRequest()
-            request.fetchLimit = 1
-            request.predicate = NSPredicate(format: "id == %@", calibration.id)
-            do {
-                guard let calibrationToUpdate = try managedObjectContext.fetch(request).first else { return }
-                calibrationToUpdate.sentToTransmitter = sentToTransmitter
-                calibrationToUpdate.acceptedByTransmitter = acceptedByTransmitter
-                if managedObjectContext.hasChanges { try managedObjectContext.save() }
-            } catch {
-                trace("G7 calibration persistence failed: %{public}@", log: self.log, category: ConstantsLog.categoryCGMG7, type: .error, error.localizedDescription)
-            }
-        }
+        cgmTransmitterDelegate?.transmitterCalibrationOutcomeReceived(
+            id: calibration.id,
+            sentToTransmitter: sentToTransmitter,
+            acceptedByTransmitter: acceptedByTransmitter
+        )
     }
 
     private func setCalibrationStatus(

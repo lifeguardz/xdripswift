@@ -1763,7 +1763,7 @@ import AppIntents
             let (calibration, _) = calibrator.initialCalibration(firstCalibrationBgValue: valueAsDoubleConvertedToMgDl, firstCalibrationTimeStamp: Date(timeInterval: -(5*60), since: Date()), secondCalibrationBgValue: valueAsDoubleConvertedToMgDl, sensor: activeSensor, lastBgReadingsWithCalculatedValue0AndForSensor: &latestReadings, deviceName: deviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext)
 
             if let calibration = calibration {
-                cgmTransmitter.calibrate(calibration: calibration)
+                cgmTransmitter.calibrate(calibration: CGMTransmitterCalibrationSnapshot(calibration: calibration))
                 self.alertManager?.snooze(alertKind: .fastdrop, snoozePeriodInMinutes: 9, response: nil)
                 self.alertManager?.snooze(alertKind: .fastrise, snoozePeriodInMinutes: 9, response: nil)
             }
@@ -1771,7 +1771,7 @@ import AppIntents
             trace("calibration : creating calibration", log: self.log, category: ConstantsLog.categoryRootView, type: .info)
 
             if let calibration = calibrator.createNewCalibration(bgValue: valueAsDoubleConvertedToMgDl, lastBgReading: latestReadings.count > 0 ? latestReadings[0] : nil, sensor: activeSensor, lastCalibrationsForActiveSensorInLastXDays: &latestCalibrations, firstCalibration: firstCalibrationForActiveSensor, deviceName: deviceName, nsManagedObjectContext: coreDataManager.mainManagedObjectContext) {
-                cgmTransmitter.calibrate(calibration: calibration)
+                cgmTransmitter.calibrate(calibration: CGMTransmitterCalibrationSnapshot(calibration: calibration))
                 self.alertManager?.snooze(alertKind: .fastdrop, snoozePeriodInMinutes: 9, response: nil)
                 self.alertManager?.snooze(alertKind: .fastrise, snoozePeriodInMinutes: 9, response: nil)
             }
@@ -2739,6 +2739,42 @@ import AppIntents
 
 /// conform to CGMTransmitterDelegate
 extension RootApplicationCoordinator: @preconcurrency CGMTransmitterDelegate {
+
+    func transmitterCalibrationOutcomeReceived(id: String, sentToTransmitter: Bool?, acceptedByTransmitter: Bool?) {
+        // The Bluetooth layer reports outcomes for detached calibration snapshots. Re-apply the
+        // flags here, in the store that owns the original calibration, by fetching the managed
+        // object again on its own queue. This keeps NSManagedObject references out of the
+        // asynchronous Bluetooth callbacks entirely.
+        guard let coreDataManager else { return }
+
+        let log = self.log
+        let context = coreDataManager.mainManagedObjectContext
+
+        context.perform {
+            let fetchRequest: NSFetchRequest<Calibration> = Calibration.fetchRequest()
+            fetchRequest.fetchLimit = 1
+            fetchRequest.predicate = NSPredicate(format: "id == %@", id)
+
+            do {
+                guard let calibrationToUpdate = try context.fetch(fetchRequest).first else { return }
+
+                if let sentToTransmitter {
+                    calibrationToUpdate.sentToTransmitter = sentToTransmitter
+                }
+
+                if let acceptedByTransmitter {
+                    calibrationToUpdate.acceptedByTransmitter = acceptedByTransmitter
+                }
+
+                if context.hasChanges {
+                    try context.save()
+                }
+            } catch {
+                trace("in transmitterCalibrationOutcomeReceived, unable to update calibration transmitter status, error = %{public}@", log: log, category: ConstantsLog.categoryRootView, type: .error, error.localizedDescription)
+            }
+        }
+    }
+
     func dexcomG6CalibrationStateReceived(_ state: DexcomAlgorithmState, sensorStartDate: Date, from transmitter: CGMG5Transmitter) {
         guard UserDefaults.standard.isMaster,
               bluetoothPeripheralManager?.getCGMTransmitter() as? CGMG5Transmitter === transmitter,

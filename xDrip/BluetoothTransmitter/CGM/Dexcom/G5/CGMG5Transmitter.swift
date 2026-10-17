@@ -1,6 +1,5 @@
 import Foundation
 import CoreBluetooth
-import CoreData
 import os
 
 class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
@@ -114,24 +113,10 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
     /// for trace
     private let log = OSLog(subsystem: ConstantsLog.subSystem, category: ConstantsLog.categoryCGMG5)
 
-    // CoreBluetooth callbacks run on bt.central, so keep pending transmitter
-    // calibration data detached from the Calibration managed object.
-    private struct PendingTransmitterCalibration {
-        let id: String
-        let bg: Double
-        let timeStamp: Date
-        let managedObjectContext: NSManagedObjectContext?
-        var sentToTransmitter: Bool
-
-        init(calibration: Calibration) {
-            id = calibration.id
-            bg = calibration.bg
-            timeStamp = calibration.timeStamp
-            managedObjectContext = calibration.managedObjectContext
-            sentToTransmitter = calibration.sentToTransmitter
-        }
-    }
-    
+    // Calibration commands cross into the Bluetooth lifecycle as detached
+    // CGMTransmitterCalibrationSnapshot values. Results are reported back through
+    // CGMTransmitterDelegate.transmitterCalibrationOutcomeReceived, identified by the snapshot id,
+    // so this class never touches the calibration store that produced the snapshot.
     /// is G5 reset necessary or not
     private var G5ResetRequested = false
     
@@ -162,7 +147,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
     
     /// - used to send calibration done by user via xDrip4iOS to Dexcom transmitter. For example, user may have given a calibration in the app, but it's not yet send to the transmitter.
     /// - calibrationToSendToTransmitter.sentToTransmitter says if it's been sent to transmitter or not
-    private var calibrationToSendToTransmitter: PendingTransmitterCalibration?
+    private var calibrationToSendToTransmitter: CGMTransmitterCalibrationSnapshot?
     
     /// if the user starts the sensor via xDrip4iOS, then only after having receivec a confirmation from the transmitter, then sensorStartDate will be assigned to the actual sensor start date
     /// - if set then call cGMG5TransmitterDelegate.received(sensorStartDate
@@ -231,7 +216,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
     ///     - userOtherApp
     ///     - isAnubis: true or false. If true then we can take advantage of extra features
     ///     - bluetoothSlot: the role byte to use for G6 authentication
-    init(address:String?, name: String?, transmitterID:String, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate, cGMG5TransmitterDelegate: CGMG5TransmitterDelegate, cGMTransmitterDelegate:CGMTransmitterDelegate, transmitterStartDate: Date?, sensorStartDate: Date?, activeSensorStartDate: Date?, calibrationToSendToTransmitter: Calibration?, firmware: String?, batteryLastReadDate: Date?, webOOPEnabled: Bool?, useOtherApp: Bool, isAnubis: Bool, bluetoothSlot: DexcomG6BluetoothSlot) {
+    init(address:String?, name: String?, transmitterID:String, bluetoothTransmitterDelegate: BluetoothTransmitterDelegate, cGMG5TransmitterDelegate: CGMG5TransmitterDelegate, cGMTransmitterDelegate:CGMTransmitterDelegate, transmitterStartDate: Date?, sensorStartDate: Date?, activeSensorStartDate: Date?, calibrationToSendToTransmitter: CGMTransmitterCalibrationSnapshot?, firmware: String?, batteryLastReadDate: Date?, webOOPEnabled: Bool?, useOtherApp: Bool, isAnubis: Bool, bluetoothSlot: DexcomG6BluetoothSlot) {
         // assign addressname and name or expected devicename
         var newAddressAndName:BluetoothTransmitter.DeviceAddressAndName = BluetoothTransmitter.DeviceAddressAndName.notYetConnected(expectedName: "DEXCOM" + transmitterID[transmitterID.index(transmitterID.startIndex, offsetBy: 4)..<transmitterID.endIndex])
         if let address = address {
@@ -266,7 +251,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
         self.isAnubis = isAnubis
         
         // assign calibrationToSendToTransmitter
-        self.calibrationToSendToTransmitter = calibrationToSendToTransmitter.map(PendingTransmitterCalibration.init)
+        self.calibrationToSendToTransmitter = calibrationToSendToTransmitter
         
         // assign sensorStartDate
         self.sensorStartDate = sensorStartDate
@@ -1110,14 +1095,16 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
         trace("in stopsensor, setting calibrationToSendToTransmitter to nil", log: log, category: ConstantsLog.categoryCGMG5, type: .info)
     }
 
-    func calibrate(calibration: Calibration) {
+    func calibrate(calibration: CGMTransmitterCalibrationSnapshot) {
         // - if calibration is valid, then it assigns calibrationToSendToTransmitter to calibration, will be picked up when transmitter connects , and if it's within an hour
         // - the function does not immediately send the calibration to the transmitter, this will happen only if connected, after successful authentication
+        // - the snapshot arrives already detached from the calibration store; results are reported
+        //   back through the delegate, identified by the snapshot id
         
         // set calibrationToSendToTransmitter to nil, because a new calibration needs to be sent
         calibrationToSendToTransmitter = nil
         
-        let pendingCalibration = PendingTransmitterCalibration(calibration: calibration)
+        let pendingCalibration = calibration
 
         if calibrationIsValid(calibration: pendingCalibration) {
             calibrationToSendToTransmitter = pendingCalibration
@@ -1219,7 +1206,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
     }
     
     /// sends calibrationTxMessage. Will use super.writeDataToPeripheral, meaning, even if useOtherApp = true, then still it will send the data to the transmitter
-    private func sendCalibrationTxMessage(calibration: PendingTransmitterCalibration, transmitterStartDate: Date) {
+    private func sendCalibrationTxMessage(calibration: CGMTransmitterCalibrationSnapshot, transmitterStartDate: Date) {
         
         let calibrationTxMessage = DexcomCalibrationTxMessage(glucose: Int(calibration.bg), timeStamp: calibration.timeStamp, transmitterStartDate: transmitterStartDate)
         
@@ -1230,7 +1217,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
             _ = super.writeDataToPeripheral(data: calibrationTxMessage.data, characteristicToWriteTo: writeControlCharacteristic, type: .withResponse)
             
             // set sentToTransmitter to true
-            calibrationToSendToTransmitter?.sentToTransmitter = true
+            calibrationToSendToTransmitter = calibrationToSendToTransmitter?.markedAsSentToTransmitter()
             updateCalibrationTransmitterStatus(calibration: calibration, sentToTransmitter: true)
             
         } else {
@@ -2137,7 +2124,7 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
     /// - check if stored calibration is valid or not, valid in the sense of "is it ok to send it to the transmitter"
     ///
     /// - returns: false if calibration.sentToTransmitter is true, false if calibrationToSendToTransmitter has a timestamp in the future, false if calibrationToSendToTransmitter has an invalid value ( < 40 or > 400). true in all other cases
-    private func calibrationIsValid(calibration: PendingTransmitterCalibration) -> Bool {
+    private func calibrationIsValid(calibration: CGMTransmitterCalibrationSnapshot) -> Bool {
         // if already sent to transmitter then invalid
         if calibration.sentToTransmitter {
             trace("in calibrationIsValid, calibration.sentToTransmitter is true, means this calibration is already sent to the transmitter", log: log, category: ConstantsLog.categoryCGMG5, type: .info)
@@ -2165,32 +2152,16 @@ class CGMG5Transmitter:BluetoothTransmitter, CGMTransmitter {
         return true
     }
 
-    private func updateCalibrationTransmitterStatus(calibration: PendingTransmitterCalibration, sentToTransmitter: Bool? = nil, acceptedByTransmitter: Bool? = nil) {
-        guard let managedObjectContext = calibration.managedObjectContext else { return }
-
-        managedObjectContext.perform {
-            let fetchRequest: NSFetchRequest<Calibration> = Calibration.fetchRequest()
-            fetchRequest.fetchLimit = 1
-            fetchRequest.predicate = NSPredicate(format: "id == %@", calibration.id)
-
-            do {
-                guard let calibrationToUpdate = try managedObjectContext.fetch(fetchRequest).first else { return }
-
-                if let sentToTransmitter = sentToTransmitter {
-                    calibrationToUpdate.sentToTransmitter = sentToTransmitter
-                }
-
-                if let acceptedByTransmitter = acceptedByTransmitter {
-                    calibrationToUpdate.acceptedByTransmitter = acceptedByTransmitter
-                }
-
-                if managedObjectContext.hasChanges {
-                    try managedObjectContext.save()
-                }
-            } catch {
-                trace("in updateCalibrationTransmitterStatus, unable to update calibration transmitter status, error = %{public}@", log: self.log, category: ConstantsLog.categoryCGMG5, type: .error, error.localizedDescription)
-            }
-        }
+    /// Reports the outcome of one calibration round-trip to the delegate. The delegate owns the
+    /// calibration store and re-applies the flags by identifier; this class never persists anything.
+    /// A nil flag means the transmitter has no new information for it and the stored value must be
+    /// left unchanged.
+    private func updateCalibrationTransmitterStatus(calibration: CGMTransmitterCalibrationSnapshot, sentToTransmitter: Bool? = nil, acceptedByTransmitter: Bool? = nil) {
+        cgmTransmitterDelegate?.transmitterCalibrationOutcomeReceived(
+            id: calibration.id,
+            sentToTransmitter: sentToTransmitter,
+            acceptedByTransmitter: acceptedByTransmitter
+        )
     }
     
     /// Possibly webOOPEnabled might be set to false, even though it's a transmitter that can only use with webOOPEnabled true. This can happen if transmitter is known but disconnected, app is launched, user goes to bluetooth settings. At that time, view will show the option to disable weboopenabled, then user disables oopweb, then clicks 'connect'. App will crash, and then user relaunches. At that time, webOOPEnabled will not be shown (transmitter is known, it returns false to nonWebOOPAllowed), but it's actually enabled. To avoid that transmitter starts using raw, this function here i sused

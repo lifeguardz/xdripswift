@@ -1859,15 +1859,8 @@ extension UserDefaults {
         }
     }
 
-    /// active transmitter ID. Optional as should be set to nil if there is no transmitter connected. Used for the UI to configure sensor type in case no sensor serial number is availabel (for example Dexcom).
-    @objc dynamic var activeSensorTransmitterId: String? {
-        get {
-            return string(forKey: Key.activeSensorTransmitterId.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.activeSensorTransmitterId.rawValue)
-        }
-    }
+    // activeSensorTransmitterId and activeSensorMaxSensorAgeInDays are defined in
+    // UserDefaults+SharedCore.swift so the shared Bluetooth/CGM core can use them on watchOS too.
 
     /// active sensor start date. Optional as should be set to nil if there is no sensor connected or if no successful follower login has happened and/or if no active sensor is returned
     @objc dynamic var activeSensorStartDate: Date? {
@@ -1879,15 +1872,8 @@ extension UserDefaults {
         }
     }
 
-    /// active sensor max sensor days. Optional as should be set to nil if no successful login has happened and/or if no active sensor is returned
-    var activeSensorMaxSensorAgeInDays: Double? {
-        get {
-            return double(forKey: Key.activeSensorMaxSensorAgeInDays.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.activeSensorMaxSensorAgeInDays.rawValue)
-        }
-    }
+    // activeSensorMaxSensorAgeInDays is defined in UserDefaults+SharedCore.swift so the shared
+    // Bluetooth/CGM core can use it on watchOS too.
 
     /// overriden active sensor max sensor days. Optional as should be set to nil if the user isn't using a G6 and hasn't overriden manually the max days
     var activeSensorMaxSensorAgeInDaysOverridenAnubis: Double? {
@@ -2843,25 +2829,8 @@ extension UserDefaults {
         }
     }
 
-    /// OSLogEnabled - default false
-    var OSLogEnabled: Bool {
-        get {
-            return bool(forKey: Key.OSLogEnabled.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.OSLogEnabled.rawValue)
-        }
-    }
-
-    /// NSLogEnabled - default false
-    var NSLogEnabled: Bool {
-        get {
-            return bool(forKey: Key.NSLogEnabled.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.NSLogEnabled.rawValue)
-        }
-    }
+    // OSLogEnabled and NSLogEnabled are defined in UserDefaults+SharedCore.swift so the shared
+    // tracing layer can use them on watchOS too.
 
     /// to create artificial delay in readings stored in sharedUserDefaults for loop. Minutes.
     ///
@@ -3110,20 +3079,8 @@ extension UserDefaults {
         }
     }
 
-    /// used for storing data read with Libre 2 direct
-    var previousRawGlucoseValues: [Int]? {
-        get {
-            if let data = object(forKey: Key.previousRawGlucoseValues.rawValue) as? [Int] {
-                return data as [Int]
-            } else {
-                return nil
-            }
-
-        }
-        set {
-            set(newValue, forKey: Key.previousRawGlucoseValues.rawValue)
-        }
-    }
+    // previousRawGlucoseValues is defined in UserDefaults+SharedCore.swift so the shared
+    // Bluetooth/CGM core can use it on watchOS too.
 
     /// used for storing data read with Libre 2 direct
     var previousRawTemperatureValues: [Int]? {
@@ -3155,15 +3112,8 @@ extension UserDefaults {
         }
     }
 
-    /// addDebugLevelLogsInTraceFileAndNSLog - default false
-    var addDebugLevelLogsInTraceFileAndNSLog: Bool {
-        get {
-            return bool(forKey: Key.addDebugLevelLogsInTraceFileAndNSLog.rawValue)
-        }
-        set {
-            set(newValue, forKey: Key.addDebugLevelLogsInTraceFileAndNSLog.rawValue)
-        }
-    }
+    // addDebugLevelLogsInTraceFileAndNSLog is defined in UserDefaults+SharedCore.swift so the
+    // shared tracing layer can use it on watchOS too.
 
     /// will be set to true when UIApplication.willEnterForegroundNotification is triggered. And to false when app goes back to background
     ///

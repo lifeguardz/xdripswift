@@ -1,5 +1,8 @@
 import Foundation
+#if os(iOS)
+// UIKit is used only by the iOS-only AppInfo/ReportBuilder sections at the end of this file.
 import UIKit
+#endif
 
 // Consumer-log pipeline:
 //
@@ -104,6 +107,8 @@ enum TroubleshootingLogSource: String, Codable {
     /// prefix. It must never persist the transmitter ID itself. Libre 2 and Libre 2 Plus cannot be
     /// distinguished until NFC has read the sensor, so that setup choice deliberately uses the
     /// honest combined name rather than guessing the model from stale sensor information.
+    #if os(iOS)
+    // The setup flow and its BluetoothPeripheralType exist only in the iOS app.
     init?(bluetoothPeripheralType: BluetoothPeripheralType, transmitterID: String? = nil) {
         switch bluetoothPeripheralType {
         case .DexcomType:
@@ -135,6 +140,7 @@ enum TroubleshootingLogSource: String, Codable {
             return nil
         }
     }
+    #endif
 
     /// Stable English wording used by both the on-screen rows and exported plain text.
     var name: String {
@@ -386,6 +392,8 @@ enum TroubleshootingDexcomBluetoothChannel: String, Codable {
 enum TroubleshootingTherapySource: String, Codable {
     case automatic, none, nightscout, careLink
 
+    #if os(iOS)
+    // TherapyDataSourceType belongs to the iOS app's therapy settings.
     init(_ value: TherapyDataSourceType) {
         switch value {
         case .automatic: self = .automatic
@@ -394,6 +402,7 @@ enum TroubleshootingTherapySource: String, Codable {
         case .careLink: self = .careLink
         }
     }
+    #endif
 
     var name: String {
         switch self {
@@ -448,9 +457,12 @@ enum TroubleshootingCredentialField: String, Codable {
 enum TroubleshootingSmoothingAlgorithm: String, Codable {
     case savitzkyGolay, exponential, kalman, loess, hampelSavitzkyGolay
 
+    #if os(iOS)
+    // BgSmoothingAlgorithm belongs to the iOS app's BG post-processing settings.
     init(_ value: BgSmoothingAlgorithm) {
         self = TroubleshootingSmoothingAlgorithm(rawValue: value.rawValue) ?? .savitzkyGolay
     }
+    #endif
 
     var name: String {
         switch self {
@@ -471,6 +483,8 @@ enum TroubleshootingSmoothingAlgorithm: String, Codable {
 enum TroubleshootingAdjustmentEmphasis: String, Codable {
     case highs, normal, lows
 
+    #if os(iOS)
+    // BgAdjustmentShapeType belongs to the iOS app's BG post-processing settings.
     init(_ value: BgAdjustmentShapeType) {
         switch value {
         case .softerLows: self = .highs
@@ -478,6 +492,7 @@ enum TroubleshootingAdjustmentEmphasis: String, Codable {
         case .softerHighs: self = .lows
         }
     }
+    #endif
 
     var name: String {
         switch self {
@@ -586,6 +601,8 @@ enum TroubleshootingTreatmentKind: String, Codable {
     case pumpBatteryChange
     case note
 
+    #if os(iOS)
+    // TreatmentType belongs to the iOS app's treatment store.
     init(_ treatmentType: TreatmentType) {
         switch treatmentType {
         case .Insulin: self = .insulin
@@ -601,6 +618,7 @@ enum TroubleshootingTreatmentKind: String, Codable {
         case .Note: self = .note
         }
     }
+    #endif
 
     var name: String {
         switch self {
@@ -630,6 +648,8 @@ enum TroubleshootingTreatmentActivity: Codable, Equatable {
 enum TroubleshootingSensorNoiseStatus: String, Codable {
     case collecting, low, elevated, veryHigh, extreme, flatlineSuspected
 
+    #if os(iOS)
+    // SensorNoiseState belongs to the iOS app's noise measurement pipeline.
     init(_ value: SensorNoiseState) {
         switch value {
         case .collecting: self = .collecting
@@ -640,6 +660,7 @@ enum TroubleshootingSensorNoiseStatus: String, Codable {
         case .flatlineSuspected: self = .flatlineSuspected
         }
     }
+    #endif
 
     var name: String {
         switch self {
@@ -1717,6 +1738,10 @@ final class TroubleshootingLogStore {
     }
 }
 
+// The AppInfo and ReportBuilder sections summarise iOS app configuration and Core Data state for
+// the shared support report. They belong to the iOS app only: the watchOS Watch app shares the
+// troubleshooting entry types and the log store above, but has none of that app state to describe.
+#if os(iOS)
 /// A fresh, human-readable snapshot of app configuration placed above every shared report.
 ///
 /// This information is generated when the viewer reloads and is never written to the JSON-lines
@@ -2343,3 +2368,4 @@ struct TroubleshootingLogReportBuilder {
         return formatter
     }
 }
+#endif

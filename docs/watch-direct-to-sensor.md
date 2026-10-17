@@ -1,6 +1,6 @@
 # Feature Plan: Direct-to-Watch sensor connection (Dexcom G7 / ONE+ / Stelo)
 
-- **Status:** planned, not started
+- **Status:** in progress — Phase 0 complete, Phase 1 complete (shared G7 core compiles for watchOS; iOS build unchanged; unit tests show zero regressions vs. baseline)
 - **Scope:** personal fork (`lifeguardz/xdripswift`), based on upstream `JohanDegraeve/xdripswift` v7.1.1 (build 4233)
 - **First target sensor family:** Dexcom G7 / ONE+ / Stelo (native Bluetooth, primary mode)
 - **Related upstream issues:** `JohanDegraeve/xdripswift#685` (G7 without Dexcom app), upstream FAQ currently states the Watch app *cannot* connect directly to a CGM — this feature changes that for this fork
@@ -105,7 +105,7 @@ Dexcom G7 Direct-to-Watch shipped June 2024 (US/UK/IE) as "the first CGM that co
 - Add `bluetooth-central` background mode to the Watch app's Info configuration (`UIBackgroundModes`).
 - **Acceptance:** Watch app builds and runs with the iPhone app not installed; existing companion flows still work when it is installed.
 
-### Phase 1 — Compile the G7 core for watchOS *(make-or-break)*
+### Phase 1 — Compile the G7 core for watchOS *(make-or-break)* — **DONE**
 
 Add to the `xDrip Watch App` target's Sources build phase:
 
@@ -119,6 +119,49 @@ Add to the `xDrip Watch App` target's Sources build phase:
 - Supporting shared types the watch target already partially includes (`FollowerDataSourceType`, constants, etc.) — extend as needed.
 - `#if os(iOS)` guards for iOS-only APIs encountered during compile (e.g. `UIApplication` background tasks in `BluetoothTransmitter`-adjacent code, UIKit imports).
 - **Acceptance:** Watch target compiles for watchOS with the full G7 protocol stack; existing iOS target builds unchanged; unit tests still pass.
+
+**What was actually implemented** (beyond the original outline):
+
+- **Calibration decoupling refactor (the keystone):** `CGMTransmitter.calibrate` now takes a new
+  shared value type `CGMTransmitterCalibrationSnapshot` (id/bg/timeStamp/sentToTransmitter) instead
+  of the Core Data `Calibration` object. Transmitters report round-trip outcomes through the new
+  `CGMTransmitterDelegate.transmitterCalibrationOutcomeReceived(id:sentToTransmitter:acceptedByTransmitter:)`
+  callback; `RootApplicationCoordinator` (the delegate owner) persists the flags in Core Data.
+  Both `CGMG7Transmitter` and `CGMG5Transmitter` lost their private
+  `PendingTransmitterCalibration` struct and all direct Core Data access — the Bluetooth layer is
+  now platform-neutral and store-free. `#if os(iOS)` is limited to the snapshot's convenience
+  `init(calibration:)` and the G6-only delegate requirement
+  (`dexcomG6CalibrationStateReceived`, which references the iOS-only `CGMG5Transmitter`).
+- **Watch target Sources additions (~80 files):** BLE core (4), CGM generic (10), G7 (2), the whole
+  `Dexcom/Generic` protocol folder minus the G6-only `DexcomG6InitialCalibrationPolicy.swift`
+  (Swift 44 + `AESCrypt.m`, `DexcomG7AuthBridge.m`, `DexcomG7ECC.c`), and the shared support layer
+  (`Trace.swift`, `TroubleshootingLog.swift`, `NightscoutFollowType.swift`,
+  `SensorHealthModels.swift`, `XdripError.swift`, `Int.swift`, `String.swift`, `StringProtocol.swift`,
+  `Data.swift`, `TimeInterval.swift`, `Constants{Log,Trace,BluetoothPairing,DexcomG5,DexcomG7,DefaultAlertLevels}.swift`,
+  `SavitzkyGolaySmoothableArray.swift`, `UserDefaults+SharedCore.swift`).
+- **New watch bridging header:** `xDrip Watch App/xDripWatchApp-Bridging-Header.h` (imports
+  `AESCrypt.h` + `DexcomG7AuthBridge.h`), `SWIFT_OBJC_BRIDGING_HEADER` and
+  `HEADER_SEARCH_PATHS = $(PROJECT_DIR)/xDrip` set on the watch target.
+- **Platform guards in shared files:**
+  - `Trace.swift`: the iOS-only `Trace` class (app-state aggregation) is `#if os(iOS)`.
+  - `TroubleshootingLog.swift`: `TroubleshootingLogAppInfo` + `TroubleshootingLogReportBuilder`
+    (iOS app-state report sections) and six iOS-type converter inits are `#if os(iOS)`;
+    `import UIKit` is conditional.
+  - `UserDefaults` keys needed by the shared core (`activeSensorTransmitterId`,
+    `activeSensorMaxSensorAgeInDays`, `previousRawGlucoseValues`, `OSLogEnabled`, `NSLogEnabled`,
+    `addDebugLevelLogsInTraceFileAndNSLog`) moved from the 3.3k-line iOS-only
+    `Extensions/UserDefaults.swift` into new shared `Extensions/UserDefaults+SharedCore.swift`
+    (identical raw key strings — both platforms must keep them in sync).
+  - `SensorSessionOrigin`, `SensorCalibrationMode`, `CGMSensorSessionStartResult` moved from
+    iOS-only `DexcomG6SensorLabel.swift` to new shared
+    `BluetoothTransmitter/CGM/Generic/CGMSensorSessionStartResult.swift` — they are
+    `CGMTransmitterDelegate` payload types.
+- **Verified:** Watch app scheme builds for `generic/platform=watchOS` with the full G7 stack,
+  including the vendored J-PAKE/ECC crypto in C/ObjC. iOS app target builds unchanged. Unit tests
+  (`xdrip` scheme, iPhone 17 Pro simulator): the failing set is byte-identical to the unmodified
+  master baseline (8 pre-existing failures in `TroubleshootingLogTests`,
+  `DexcomG6SensorLabelTests` and `GlucoseRangeDistributionTests` — Core Data fixture/migration and
+  TIR rounding tests that fail on master in this environment too); **zero regressions introduced**.
 
 ### Phase 2 — Watch-side sensor manager + data flow
 

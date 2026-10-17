@@ -59,9 +59,12 @@ protocol CGMTransmitter: AnyObject {
     /// - only useful for Dexcom type of transmitters, other transmitter types will have an empty implementation
     func stopSensor(stopDate: Date)
     
-    /// - to send a calibration toe the transmitter
+    /// - to send a calibration to the transmitter
     /// - only useful for Dexcom type of transmitters, other transmitter types will have an empty implementation
-    func calibrate(calibration: Calibration)
+    /// - the calibration is passed as a detached snapshot: transmitters use only the copied values
+    ///   and stay decoupled from the calibration store, so the CGM stack also compiles on
+    ///   platforms without the app's Core Data store (see docs/watch-direct-to-sensor.md)
+    func calibrate(calibration: CGMTransmitterCalibrationSnapshot)
 
     /// Latest transmitter-side calibration state, when the active CGM exposes one.
     func transmitterCalibrationStatus() -> CGMTransmitterCalibrationStatus?
@@ -479,7 +482,7 @@ extension CGMTransmitter {
     func stopSensor(stopDate: Date) {}
     
     // default implementation, does nothing
-    func calibrate(calibration: Calibration) {}
+    func calibrate(calibration: CGMTransmitterCalibrationSnapshot) {}
 
     func transmitterCalibrationStatus() -> CGMTransmitterCalibrationStatus? { return nil }
     

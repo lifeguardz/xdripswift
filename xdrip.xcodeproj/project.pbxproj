@@ -701,6 +701,88 @@
 		F8B955B7258D5E2000C06016 /* ConstantsHealthKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B955B6258D5E2000C06016 /* ConstantsHealthKit.swift */; };
 		F8B955EB2591355200C06016 /* CGMLibre2Transmitter+TestData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B955EA2591355200C06016 /* CGMLibre2Transmitter+TestData.swift */; };
 		F8BDD4242218790E006EAB84 /* UserDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BDD4232218790E006EAB84 /* UserDefaults.swift */; };
+		7A1D0C5E00000000000000C3 /* UserDefaults+SharedCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C4 /* UserDefaults+SharedCore.swift */; };
+		7A1D0C5E0000000000D0001 /* BluetoothTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F9720123A5915900C3F17D /* BluetoothTransmitter.swift */; };
+		7A1D0C5E0000000000D0002 /* BluetoothTransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F9720023A5915900C3F17D /* BluetoothTransmitterDelegate.swift */; };
+		7A1D0C5E0000000000D0003 /* CBManagerState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C0921D94FD700ECF0C0 /* CBManagerState.swift */; };
+		7A1D0C5E0000000000D0004 /* CBPeripheralState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F897AAF82200F2D200CDDD10 /* CBPeripheralState.swift */; };
+		7A1D0C5E0000000000D0005 /* CGMTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F123A5915900C3F17D /* CGMTransmitter.swift */; };
+		7A1D0C5E0000000000D0006 /* CGMTransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F323A5915900C3F17D /* CGMTransmitterDelegate.swift */; };
+		7A1D0C5E0000000000D0007 /* CGMTransmitterCalibrationSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C2 /* CGMTransmitterCalibrationSnapshot.swift */; };
+		7A1D0C5E0000000000D0008 /* CGMSensorType.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C9784C2428052D00A09483 /* CGMSensorType.swift */; };
+		7A1D0C5E0000000000D0009 /* GlucoseData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F423A5915900C3F17D /* GlucoseData.swift */; };
+		7A1D0C5E0000000000D000A /* GlucoseData+Smoothable.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8797CE9255B43960033956B /* GlucoseData+Smoothable.swift */; };
+		7A1D0C5E0000000000D000B /* TransmitterBatteryInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F223A5915900C3F17D /* TransmitterBatteryInfo.swift */; };
+		7A1D0C5E0000000000D000C /* CGMG7Transmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F71D732B7C1143005076E8 /* CGMG7Transmitter.swift */; };
+		7A1D0C5E0000000000D000D /* CGMG7TransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F71D772B7D2754005076E8 /* CGMG7TransmitterDelegate.swift */; };
+		7A1D0C5E0000000000D000E /* AuthChallengeRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971D223A5915900C3F17D /* AuthChallengeRxMessage.swift */; };
+		7A1D0C5E0000000000D000F /* AuthChallengeTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C423A5915900C3F17D /* AuthChallengeTxMessage.swift */; };
+		7A1D0C5E0000000000D0010 /* AuthRequestRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971CC23A5915900C3F17D /* AuthRequestRxMessage.swift */; };
+		7A1D0C5E0000000000D0011 /* AuthRequestTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C323A5915900C3F17D /* AuthRequestTxMessage.swift */; };
+		7A1D0C5E0000000000D0012 /* BatteryStatusRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971D123A5915900C3F17D /* BatteryStatusRxMessage.swift */; };
+		7A1D0C5E0000000000D0013 /* BatteryStatusTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C523A5915900C3F17D /* BatteryStatusTxMessage.swift */; };
+		7A1D0C5E0000000000D0014 /* DexcomAlgorithmState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59C7273EF9F800BA199E /* DexcomAlgorithmState.swift */; };
+		7A1D0C5E0000000000D0015 /* DexcomBackfillStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1671A272B3E4F001AA3D8 /* DexcomBackfillStream.swift */; };
+		7A1D0C5E0000000000D0016 /* DexcomBackfillTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59C32739D1CD00BA199E /* DexcomBackfillTxMessage.swift */; };
+		7A1D0C5E0000000000D0017 /* DexcomCalibrationParameters.swift in Sources */ = {isa = PBXBuildFile; fileRef = F828422F274ED56A0097E0C9 /* DexcomCalibrationParameters.swift */; };
+		7A1D0C5E0000000000D0018 /* DexcomCalibrationResponseType.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F16714272745A2001AA3D8 /* DexcomCalibrationResponseType.swift */; };
+		7A1D0C5E0000000000D0019 /* DexcomCalibrationRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1671227274557001AA3D8 /* DexcomCalibrationRxMessage.swift */; };
+		7A1D0C5E0000000000D001A /* DexcomCalibrationTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59C927405A6800BA199E /* DexcomCalibrationTxMessage.swift */; };
+		7A1D0C5E0000000000D001B /* DexcomG6GlucoseDataRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59C5273ECFE500BA199E /* DexcomG6GlucoseDataRxMessage.swift */; };
+		7A1D0C5E0000000000D001C /* DexcomG6InitialCalibrationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = C606CA17273EF9F800BA199E /* DexcomG6InitialCalibrationPolicy.swift */; };
+		7A1D0C5E0000000000D001D /* DexcomG7AuthSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F012D52FC9D71700112233 /* DexcomG7AuthSession.swift */; };
+		7A1D0C5E0000000000D001E /* DexcomG7BackfillMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8DB19D12B89583F00569C37 /* DexcomG7BackfillMessage.swift */; };
+		7A1D0C5E0000000000D001F /* DexcomG7CalibrationMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7F00033018000100000001 /* DexcomG7CalibrationMessages.swift */; };
+		7A1D0C5E0000000000D0020 /* DexcomG7DiagnosticMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D810001301A000100000001 /* DexcomG7DiagnosticMessages.swift */; };
+		7A1D0C5E0000000000D0021 /* DexcomG7ExtendedVersionMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D8000013019000100000001 /* DexcomG7ExtendedVersionMessage.swift */; };
+		7A1D0C5E0000000000D0022 /* DexcomG7GlucoseDataRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F85544902B83E6C3002569F8 /* DexcomG7GlucoseDataRxMessage.swift */; };
+		7A1D0C5E0000000000D0023 /* DexcomG7ProofSigner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47F012D72FC9D71700112233 /* DexcomG7ProofSigner.swift */; };
+		7A1D0C5E0000000000D0024 /* DexcomGlucoseDataTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59C12738206D00BA199E /* DexcomGlucoseDataTxMessage.swift */; };
+		7A1D0C5E0000000000D0025 /* DexcomSessionStartResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59CB2744471000BA199E /* DexcomSessionStartResponse.swift */; };
+		7A1D0C5E0000000000D0026 /* DexcomSessionStartRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1671827288FC6001AA3D8 /* DexcomSessionStartRxMessage.swift */; };
+		7A1D0C5E0000000000D0027 /* DexcomSessionStartTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59D2274D94AE00BA199E /* DexcomSessionStartTxMessage.swift */; };
+		7A1D0C5E0000000000D0028 /* DexcomSessionStopResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59CD27444D6300BA199E /* DexcomSessionStopResponse.swift */; };
+		7A1D0C5E0000000000D0029 /* DexcomSessionStopRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1671627288B24001AA3D8 /* DexcomSessionStopRxMessage.swift */; };
+		7A1D0C5E0000000000D002A /* DexcomSessionStopTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F82842312752CBE00097E0C9 /* DexcomSessionStopTxMessage.swift */; };
+		7A1D0C5E0000000000D002B /* DexcomTransmitterOpCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C723A5915900C3F17D /* DexcomTransmitterOpCode.swift */; };
+		7A1D0C5E0000000000D002C /* DexcomTransmitterTimeRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F167092727317C001AA3D8 /* DexcomTransmitterTimeRxMessage.swift */; };
+		7A1D0C5E0000000000D002D /* DexcomTransmitterTimeTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CB59BF2734976D00BA199E /* DexcomTransmitterTimeTxMessage.swift */; };
+		7A1D0C5E0000000000D002E /* FirmwareVersionTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971D023A5915900C3F17D /* FirmwareVersionTxMessage.swift */; };
+		7A1D0C5E0000000000D002F /* GlucoseBackfillRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1670B27273774001AA3D8 /* GlucoseBackfillRxMessage.swift */; };
+		7A1D0C5E0000000000D0030 /* GlucoseDataRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F1670D27273EA7001AA3D8 /* GlucoseDataRxMessage.swift */; };
+		7A1D0C5E0000000000D0031 /* KeepAliveTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971CF23A5915900C3F17D /* KeepAliveTxMessage.swift */; };
+		7A1D0C5E0000000000D0032 /* NSData+CRC.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971CD23A5915900C3F17D /* NSData+CRC.swift */; };
+		7A1D0C5E0000000000D0033 /* PairRequestTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971D323A5915900C3F17D /* PairRequestTxMessage.swift */; };
+		7A1D0C5E0000000000D0034 /* ResetMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971CB23A5915900C3F17D /* ResetMessage.swift */; };
+		7A1D0C5E0000000000D0035 /* SensorDataRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C823A5915900C3F17D /* SensorDataRxMessage.swift */; };
+		7A1D0C5E0000000000D0036 /* SensorDataTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C923A5915900C3F17D /* SensorDataTxMessage.swift */; };
+		7A1D0C5E0000000000D0037 /* String+Dexcom.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8284236276BE78D0097E0C9 /* String+Dexcom.swift */; };
+		7A1D0C5E0000000000D0038 /* TransmitterMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C223A5915900C3F17D /* TransmitterMessage.swift */; };
+		7A1D0C5E0000000000D0039 /* TransmitterVersionRxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971CE23A5915900C3F17D /* TransmitterVersionRxMessage.swift */; };
+		7A1D0C5E0000000000D003A /* TransmitterVersionTxMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C123A5915900C3F17D /* TransmitterVersionTxMessage.swift */; };
+		7A1D0C5E0000000000D003B /* AESCrypt.m in Sources */ = {isa = PBXBuildFile; fileRef = F8F971C623A5915900C3F17D /* AESCrypt.m */; };
+		7A1D0C5E0000000000D003C /* DexcomG7AuthBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 47F012D02FC9D71700112233 /* DexcomG7AuthBridge.m */; };
+		7A1D0C5E0000000000D003D /* DexcomG7ECC.c in Sources */ = {isa = PBXBuildFile; fileRef = 47F012D32FC9D71700112233 /* DexcomG7ECC.c */; };
+		7A1D0C5E0000000000D003E /* Trace.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C5EBE622F38F0E00563B5F /* Trace.swift */; };
+		7A1D0C5E0000000000D003F /* TroubleshootingLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D7A00013014000100000001 /* TroubleshootingLog.swift */; };
+		7A1D0C5E0000000000D0040 /* NightscoutFollowType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476A897D2CCA7E680073ED83 /* NightscoutFollowType.swift */; };
+		7A1D0C5E0000000000D0041 /* SensorHealthModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F2500133002000100000001 /* SensorHealthModels.swift */; };
+		7A1D0C5E0000000000D0042 /* XdripError.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AF11F724B1E6EE00AE5BA2 /* XdripError.swift */; };
+		7A1D0C5E0000000000D0043 /* ConstantsLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A1585E22EDB81E007F5B5D /* ConstantsLog.swift */; };
+		7A1D0C5E0000000000D0044 /* ConstantsTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8AF36142455C6F700B5977B /* ConstantsTrace.swift */; };
+		7A1D0C5E0000000000D0045 /* ConstantsBluetoothPairing.swift in Sources */ = {isa = PBXBuildFile; fileRef = F856CE5A22EDC8E50083E436 /* ConstantsBluetoothPairing.swift */; };
+		7A1D0C5E0000000000D0046 /* ConstantsDexcomG5.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A1585A22EDB7EA007F5B5D /* ConstantsDexcomG5.swift */; };
+		7A1D0C5E0000000000D0047 /* ConstantsDefaultAlertLevels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8A1585822EDB7C6007F5B5D /* ConstantsDefaultAlertLevels.swift */; };
+		7A1D0C5E0000000000D0048 /* Data.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8025C1221DA683400ECF0C0 /* Data.swift */; };
+		7A1D0C5E0000000000D0049 /* StringProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8E3C3AA21FE17B700907A04 /* StringProtocol.swift */; };
+		7A1D0C5E0000000000D004A /* UserDefaults+SharedCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C4 /* UserDefaults+SharedCore.swift */; };
+		7A1D0C5E0000000000D004B /* TimeInterval.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BECB11235CEA9B0060DAE1 /* TimeInterval.swift */; };
+		7A1D0C5E0000000000D004C /* ConstantsDexcomG7.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F71D792B7E9DFB005076E8 /* ConstantsDexcomG7.swift */; };
+		7A1D0C5E0000000000D004D /* String.swift in Sources */ = {isa = PBXBuildFile; fileRef = F897AAFA2201018800CDDD10 /* String.swift */; };
+		7A1D0C5E00000000000000C6 /* CGMSensorSessionStartResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C7 /* CGMSensorSessionStartResult.swift */; };
+		7A1D0C5E0000000000D004E /* CGMSensorSessionStartResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C7 /* CGMSensorSessionStartResult.swift */; };
+		7A1D0C5E0000000000D004F /* SavitzkyGolaySmoothableArray.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F7B8EA259A7B1C00C47B04 /* SavitzkyGolaySmoothableArray.swift */; };
+		7A1D0C5E0000000000D0050 /* Int.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8B3A85C22821BB6004BA588 /* Int.swift */; };
 		F8BDD438221A0349006EAB84 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = F8BDD436221A0349006EAB84 /* Localizable.strings */; };
 		F8BDD43F221B5BAF006EAB84 /* TextsErrorMessages.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BDD43E221B5BAF006EAB84 /* TextsErrorMessages.swift */; };
 		F8BDD442221C9D0D006EAB84 /* Common.strings in Resources */ = {isa = PBXBuildFile; fileRef = F8BDD444221C9D0D006EAB84 /* Common.strings */; };
@@ -808,6 +890,7 @@
 		F8F9722923A5915900C3F17D /* CGMTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F123A5915900C3F17D /* CGMTransmitter.swift */; };
 		F8F9722A23A5915900C3F17D /* TransmitterBatteryInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F223A5915900C3F17D /* TransmitterBatteryInfo.swift */; };
 		F8F9722B23A5915900C3F17D /* CGMTransmitterDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F323A5915900C3F17D /* CGMTransmitterDelegate.swift */; };
+		7A1D0C5E00000000000000C1 /* CGMTransmitterCalibrationSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1D0C5E00000000000000C2 /* CGMTransmitterCalibrationSnapshot.swift */; };
 		F8F9722C23A5915900C3F17D /* GlucoseData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F423A5915900C3F17D /* GlucoseData.swift */; };
 		F8F9722D23A5915900C3F17D /* M5StackBluetoothTransmitter.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F623A5915900C3F17D /* M5StackBluetoothTransmitter.swift */; };
 		F8F9722E23A5915900C3F17D /* M5StackTransmitterOpCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8F971F723A5915900C3F17D /* M5StackTransmitterOpCode.swift */; };
@@ -993,6 +1076,7 @@
 		471C9C022B933461005E1326 /* xDrip Widget Extension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "xDrip Widget Extension.entitlements"; sourceTree = "<group>"; };
 		471C9C052B94DFAE005E1326 /* xDrip-Watch-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "xDrip-Watch-App-Info.plist"; sourceTree = SOURCE_ROOT; };
 		471C9C062B94E2B3005E1326 /* xDrip Watch App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "xDrip Watch App.entitlements"; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000C5 /* xDripWatchApp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = xDripWatchApp-Bridging-Header.h; sourceTree = "<group>"; };
 		47228B142996BDD2008725DB /* BgReadingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BgReadingsView.swift; sourceTree = "<group>"; };
 		47244D652E8318D0007357C3 /* TransmitterReadSuccessManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransmitterReadSuccessManager.swift; sourceTree = "<group>"; };
 		47244D672E8318E0007357C3 /* TransmitterReadSuccessResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransmitterReadSuccessResult.swift; sourceTree = "<group>"; };
@@ -1857,6 +1941,7 @@
 		F8B955B6258D5E2000C06016 /* ConstantsHealthKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConstantsHealthKit.swift; sourceTree = "<group>"; };
 		F8B955EA2591355200C06016 /* CGMLibre2Transmitter+TestData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CGMLibre2Transmitter+TestData.swift"; sourceTree = "<group>"; };
 		F8BDD4232218790E006EAB84 /* UserDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaults.swift; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000C4 /* UserDefaults+SharedCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "UserDefaults+SharedCore.swift"; sourceTree = "<group>"; };
 		F8BDD435221A0005006EAB84 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/RootTab.strings; sourceTree = "<group>"; };
 		F8BDD437221A0349006EAB84 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F8BDD43A221A096C006EAB84 /* nl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = nl; path = nl.lproj/RootTab.strings; sourceTree = "<group>"; };
@@ -2011,6 +2096,8 @@
 		F8F971F123A5915900C3F17D /* CGMTransmitter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CGMTransmitter.swift; sourceTree = "<group>"; };
 		F8F971F223A5915900C3F17D /* TransmitterBatteryInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TransmitterBatteryInfo.swift; sourceTree = "<group>"; };
 		F8F971F323A5915900C3F17D /* CGMTransmitterDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CGMTransmitterDelegate.swift; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000C2 /* CGMTransmitterCalibrationSnapshot.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CGMTransmitterCalibrationSnapshot.swift; sourceTree = "<group>"; };
+		7A1D0C5E00000000000000C7 /* CGMSensorSessionStartResult.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CGMSensorSessionStartResult.swift; sourceTree = "<group>"; };
 		F8F971F423A5915900C3F17D /* GlucoseData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GlucoseData.swift; sourceTree = "<group>"; };
 		F8F971F623A5915900C3F17D /* M5StackBluetoothTransmitter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = M5StackBluetoothTransmitter.swift; sourceTree = "<group>"; };
 		F8F971F723A5915900C3F17D /* M5StackTransmitterOpCode.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = M5StackTransmitterOpCode.swift; sourceTree = "<group>"; };
@@ -2276,6 +2363,7 @@
 			isa = PBXGroup;
 			children = (
 				471C9C062B94E2B3005E1326 /* xDrip Watch App.entitlements */,
+				7A1D0C5E00000000000000C5 /* xDripWatchApp-Bridging-Header.h */,
 				471C9C052B94DFAE005E1326 /* xDrip-Watch-App-Info.plist */,
 				47A6ABE12B790CC60047A4BA /* xDripWatchApp.swift */,
 				47A6ABE52B790CC70047A4BA /* Assets.xcassets */,
@@ -2775,6 +2863,7 @@
 				F898EDF5234A8A5700BFB79B /* UInt32.swift */,
 				F890E079247687AE008FB2EC /* URL.swift */,
 				F8BDD4232218790E006EAB84 /* UserDefaults.swift */,
+				7A1D0C5E00000000000000C4 /* UserDefaults+SharedCore.swift */,
 				F80859282364D61B00F3829D /* UserDefaults+charts.swift */,
 				4746068D2B963EA100AC9214 /* View.swift */,
 			);
@@ -3797,6 +3886,8 @@
 			children = (
 				F8C9784C2428052D00A09483 /* CGMSensorType.swift */,
 				F8F971F123A5915900C3F17D /* CGMTransmitter.swift */,
+				7A1D0C5E00000000000000C2 /* CGMTransmitterCalibrationSnapshot.swift */,
+				7A1D0C5E00000000000000C7 /* CGMSensorSessionStartResult.swift */,
 				F8F971F323A5915900C3F17D /* CGMTransmitterDelegate.swift */,
 				F8F971F423A5915900C3F17D /* GlucoseData.swift */,
 				F8797CE9255B43960033956B /* GlucoseData+Smoothable.swift */,
@@ -4349,6 +4440,85 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7A1D0C5E0000000000D0001 /* BluetoothTransmitter.swift in Sources */,
+				7A1D0C5E0000000000D0002 /* BluetoothTransmitterDelegate.swift in Sources */,
+				7A1D0C5E0000000000D0003 /* CBManagerState.swift in Sources */,
+				7A1D0C5E0000000000D0004 /* CBPeripheralState.swift in Sources */,
+				7A1D0C5E0000000000D0005 /* CGMTransmitter.swift in Sources */,
+				7A1D0C5E0000000000D0006 /* CGMTransmitterDelegate.swift in Sources */,
+				7A1D0C5E0000000000D0007 /* CGMTransmitterCalibrationSnapshot.swift in Sources */,
+				7A1D0C5E0000000000D0008 /* CGMSensorType.swift in Sources */,
+				7A1D0C5E0000000000D0009 /* GlucoseData.swift in Sources */,
+				7A1D0C5E0000000000D000A /* GlucoseData+Smoothable.swift in Sources */,
+				7A1D0C5E0000000000D000B /* TransmitterBatteryInfo.swift in Sources */,
+				7A1D0C5E0000000000D000C /* CGMG7Transmitter.swift in Sources */,
+				7A1D0C5E0000000000D000D /* CGMG7TransmitterDelegate.swift in Sources */,
+				7A1D0C5E0000000000D000E /* AuthChallengeRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D000F /* AuthChallengeTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0010 /* AuthRequestRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0011 /* AuthRequestTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0012 /* BatteryStatusRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0013 /* BatteryStatusTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0014 /* DexcomAlgorithmState.swift in Sources */,
+				7A1D0C5E0000000000D0015 /* DexcomBackfillStream.swift in Sources */,
+				7A1D0C5E0000000000D0016 /* DexcomBackfillTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0017 /* DexcomCalibrationParameters.swift in Sources */,
+				7A1D0C5E0000000000D0018 /* DexcomCalibrationResponseType.swift in Sources */,
+				7A1D0C5E0000000000D0019 /* DexcomCalibrationRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D001A /* DexcomCalibrationTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D001B /* DexcomG6GlucoseDataRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D004B /* TimeInterval.swift in Sources */,
+				7A1D0C5E0000000000D004C /* ConstantsDexcomG7.swift in Sources */,
+				7A1D0C5E0000000000D004D /* String.swift in Sources */,
+				7A1D0C5E0000000000D004E /* CGMSensorSessionStartResult.swift in Sources */,
+				7A1D0C5E0000000000D004F /* SavitzkyGolaySmoothableArray.swift in Sources */,
+				7A1D0C5E0000000000D0050 /* Int.swift in Sources */,
+				7A1D0C5E0000000000D001D /* DexcomG7AuthSession.swift in Sources */,
+				7A1D0C5E0000000000D001E /* DexcomG7BackfillMessage.swift in Sources */,
+				7A1D0C5E0000000000D001F /* DexcomG7CalibrationMessages.swift in Sources */,
+				7A1D0C5E0000000000D0020 /* DexcomG7DiagnosticMessages.swift in Sources */,
+				7A1D0C5E0000000000D0021 /* DexcomG7ExtendedVersionMessage.swift in Sources */,
+				7A1D0C5E0000000000D0022 /* DexcomG7GlucoseDataRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0023 /* DexcomG7ProofSigner.swift in Sources */,
+				7A1D0C5E0000000000D0024 /* DexcomGlucoseDataTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0025 /* DexcomSessionStartResponse.swift in Sources */,
+				7A1D0C5E0000000000D0026 /* DexcomSessionStartRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0027 /* DexcomSessionStartTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0028 /* DexcomSessionStopResponse.swift in Sources */,
+				7A1D0C5E0000000000D0029 /* DexcomSessionStopRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D002A /* DexcomSessionStopTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D002B /* DexcomTransmitterOpCode.swift in Sources */,
+				7A1D0C5E0000000000D002C /* DexcomTransmitterTimeRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D002D /* DexcomTransmitterTimeTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D002E /* FirmwareVersionTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D002F /* GlucoseBackfillRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0030 /* GlucoseDataRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0031 /* KeepAliveTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0032 /* NSData+CRC.swift in Sources */,
+				7A1D0C5E0000000000D0033 /* PairRequestTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0034 /* ResetMessage.swift in Sources */,
+				7A1D0C5E0000000000D0035 /* SensorDataRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0036 /* SensorDataTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D0037 /* String+Dexcom.swift in Sources */,
+				7A1D0C5E0000000000D0038 /* TransmitterMessage.swift in Sources */,
+				7A1D0C5E0000000000D0039 /* TransmitterVersionRxMessage.swift in Sources */,
+				7A1D0C5E0000000000D003A /* TransmitterVersionTxMessage.swift in Sources */,
+				7A1D0C5E0000000000D003B /* AESCrypt.m in Sources */,
+				7A1D0C5E0000000000D003C /* DexcomG7AuthBridge.m in Sources */,
+				7A1D0C5E0000000000D003D /* DexcomG7ECC.c in Sources */,
+				7A1D0C5E0000000000D003E /* Trace.swift in Sources */,
+				7A1D0C5E0000000000D003F /* TroubleshootingLog.swift in Sources */,
+				7A1D0C5E0000000000D0040 /* NightscoutFollowType.swift in Sources */,
+				7A1D0C5E0000000000D0041 /* SensorHealthModels.swift in Sources */,
+				7A1D0C5E0000000000D0042 /* XdripError.swift in Sources */,
+				7A1D0C5E0000000000D0043 /* ConstantsLog.swift in Sources */,
+				7A1D0C5E0000000000D0044 /* ConstantsTrace.swift in Sources */,
+				7A1D0C5E0000000000D0045 /* ConstantsBluetoothPairing.swift in Sources */,
+				7A1D0C5E0000000000D0046 /* ConstantsDexcomG5.swift in Sources */,
+				7A1D0C5E0000000000D0047 /* ConstantsDefaultAlertLevels.swift in Sources */,
+				7A1D0C5E0000000000D0048 /* Data.swift in Sources */,
+				7A1D0C5E0000000000D0049 /* StringProtocol.swift in Sources */,
+				7A1D0C5E0000000000D004A /* UserDefaults+SharedCore.swift in Sources */,
 				474822462C01097D0052D4FB /* NotificationController.swift in Sources */,
 				47A6AC2B2B7D3DE30047A4BA /* GlucoseChartView.swift in Sources */,
 				745981A52E1F1B0F85780B06 /* GlucoseChartState.swift in Sources */,
@@ -4802,6 +4972,7 @@
 				360BF345E424B38E3822AA76 /* GlucoseChartState.swift in Sources */,
 				F8F9720E23A5915900C3F17D /* AuthRequestRxMessage.swift in Sources */,
 				F8BDD4242218790E006EAB84 /* UserDefaults.swift in Sources */,
+				7A1D0C5E00000000000000C3 /* UserDefaults+SharedCore.swift in Sources */,
 				F81D6D5222C27F18005EFAE2 /* BgReading+DexcomShare.swift in Sources */,
 				F8F9723023A5915900C3F17D /* M5StackUtilities.swift in Sources */,
 				47976E362BF536BA005E86EC /* AlertSnoozeStatus.swift in Sources */,
@@ -4907,6 +5078,8 @@
 				F8E51D5F2448E2E8001C9E5A /* ConstantsShareWithLoop.swift in Sources */,
 				4733B9422FF4C100001D609D /* CalendarFollowManager.swift in Sources */,
 				F8F9722923A5915900C3F17D /* CGMTransmitter.swift in Sources */,
+				7A1D0C5E00000000000000C1 /* CGMTransmitterCalibrationSnapshot.swift in Sources */,
+				7A1D0C5E00000000000000C6 /* CGMSensorSessionStartResult.swift in Sources */,
 				474606822B96358E00AC9214 /* WidgetSharedUserDefaultsModel.swift in Sources */,
 				F8A389ED23342EB10010F405 /* ConstantsNightscout.swift in Sources */,
 				4A9B10042F0A000100000001 /* ConstantsBgSmoothing.swift in Sources */,
@@ -5684,6 +5857,11 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(MAIN_APP_BUNDLE_IDENTIFIER)";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/xDrip",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "xDrip Watch App/xDripWatchApp-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -5724,6 +5902,11 @@
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = "$(MAIN_APP_BUNDLE_IDENTIFIER)";
 				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/xDrip",
+				);
+				SWIFT_OBJC_BRIDGING_HEADER = "xDrip Watch App/xDripWatchApp-Bridging-Header.h";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

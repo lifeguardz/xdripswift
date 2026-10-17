@@ -182,60 +182,10 @@ struct SensorStartRequest {
     }
 }
 
-// MARK: - persisted sensor metadata
-
-/// Persisted values are append-only. Existing values must not be reordered.
-enum SensorSessionOrigin: Int16 {
-    case unknown = 0
-    case startRequested = 1
-    case startedByApp = 2
-    case existingSessionAdopted = 3
-    case transmitterDetected = 4
-    case startRejected = 5
-}
-
-/// Persisted values are append-only. Existing values must not be reordered.
-enum SensorCalibrationMode: Int16 {
-    case unknown = 0
-    case noCode = 1
-    case factoryCoded = 2
-}
-
-/// Typed session-start response used to reconcile the local Sensor with the transmitter.
-struct CGMSensorSessionStartResult {
-    let response: DexcomSessionStartResponse
-    let requestedStartDate: Date
-    let sessionStartDate: Date
-
-    var isSuccessful: Bool {
-        switch response {
-        case .manualCalibrationSessionStarted,
-             .manualCalibrationSessionInProgress,
-             .autoCalibrationSessionInProgress:
-            return true
-        case .staleStartComand, .error, .transmitterEndOfLife:
-            return false
-        }
-    }
-
-    var calibrationMode: SensorCalibrationMode {
-        switch response {
-        case .manualCalibrationSessionStarted, .manualCalibrationSessionInProgress:
-            return .noCode
-        case .autoCalibrationSessionInProgress:
-            return .factoryCoded
-        case .staleStartComand, .error, .transmitterEndOfLife:
-            return .unknown
-        }
-    }
-
-    func sessionOrigin(tolerance: TimeInterval) -> SensorSessionOrigin {
-        guard isSuccessful else { return .startRejected }
-        return abs(sessionStartDate.timeIntervalSince(requestedStartDate)) <= tolerance
-            ? .startedByApp
-            : .existingSessionAdopted
-    }
-}
+// SensorSessionOrigin, SensorCalibrationMode and CGMSensorSessionStartResult moved to
+// BluetoothTransmitter/CGM/Generic/CGMSensorSessionStartResult.swift: they are payload types of
+// the shared CGMTransmitterDelegate protocol and must compile on watchOS too
+// (docs/watch-direct-to-sensor.md).
 
 // MARK: - sensor metadata
 

@@ -36,8 +36,20 @@ protocol CGMTransmitterDelegate:AnyObject {
     /// Dexcom G6/ONE provides this callback. The default implementation does nothing.
     func sensorSessionConfirmed(startDate: Date)
 
+    #if os(iOS)
     /// Reports G6/ONE calibration stages after reconciling the transmitter's session date.
+    /// G6/ONE-only requirement: the G5 transmitter stack is not compiled into the watchOS target
+    /// (Direct-to-Watch v1 supports G7/ONE+/Stelo only, see docs/watch-direct-to-sensor.md).
     func dexcomG6CalibrationStateReceived(_ state: DexcomAlgorithmState, sensorStartDate: Date, from transmitter: CGMG5Transmitter)
+    #endif
+
+    /// Asks the delegate to persist the transmitter-side outcome flags for one calibration that was
+    /// submitted through `calibrate` or supplied when the transmitter was created.
+    ///
+    /// The delegate owns the calibration store and re-applies the result there, identified by the
+    /// snapshot's `id`. Transmitters stay fully decoupled from Core Data. A `nil` flag means the
+    /// transmitter has no new information for it and the stored value must be left unchanged.
+    func transmitterCalibrationOutcomeReceived(id: String, sentToTransmitter: Bool?, acceptedByTransmitter: Bool?)
     
 }
 
@@ -45,5 +57,11 @@ extension CGMTransmitterDelegate {
     func sensorHealthEventOccurred(_ event: CGMSensorHealthEvent) {}
     func sensorSessionStartResultReceived(_ result: CGMSensorSessionStartResult) {}
     func sensorSessionConfirmed(startDate: Date) {}
+    #if os(iOS)
     func dexcomG6CalibrationStateReceived(_ state: DexcomAlgorithmState, sensorStartDate: Date, from transmitter: CGMG5Transmitter) {}
+    #endif
+
+    /// Default no-op: platforms without a calibration store (watchOS Direct-to-Watch) never submit
+    /// calibrations, so they never receive outcomes either.
+    func transmitterCalibrationOutcomeReceived(id: String, sentToTransmitter: Bool?, acceptedByTransmitter: Bool?) {}
 }

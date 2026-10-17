@@ -290,6 +290,11 @@ fileprivate func rotateTraceFiles() {
     
 }
 
+// The Trace class aggregates iOS app state (Core Data, transmitters, follower settings, alert
+// configuration) into the shareable support file. It belongs to the iOS app only: the watchOS
+// Watch app shares the trace() function and troubleshooting store above, but has none of that
+// app state to summarise.
+#if os(iOS)
 class Trace {
     
     // MARK: - private properties
@@ -846,3 +851,4 @@ class Trace {
     }
     
 }
+#endif
